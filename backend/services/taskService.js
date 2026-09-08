@@ -66,5 +66,60 @@ export async function createTask({ title, details, dueDate, priority, tags }) {
         console.error("createTask failed:", error);
         throw error;
     }
+
+    
+}
+
+export async function toggleTaskComplete(taskId, currentValue) {
+  try {
+    const taskRef = doc(db, "tasks", taskId);
+    await updateDoc(taskRef, { isDone: !currentValue });
+  } catch (error) {
+    console.error("toggleTaskComplete failed:", error);
+    throw error;
+  }
+}
+
+
+export async function getTasksByDate(dateString) {
+    try {
+        const startOfDay = new Date(`${dateString}T00:00:00`);
+        const endOfDay = new Date(`${dateString}T23:59:59.999`);
+
+        const tasksRef = collection(db, "tasks");
+        const q = query(
+            tasksRef,
+            where("dueDate", ">=", Timestamp.fromDate(startOfDay)),
+            where("dueDate", "<=", Timestamp.fromDate(endOfDay))
+        );
+        const snapshot = await getDocs(q);
+
+        return snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        }));
+    } catch (error) {
+        console.error("getTasksByDate failed:", error);
+        throw error;
+    }
+}
+
+export async function getAllTaskDates() {
+    try {
+        const tasksRef = collection(db, "tasks");
+        const snapshot = await getDocs(tasksRef);
+
+        return snapshot.docs
+            .map((doc) => {
+                const dueDate = doc.data().dueDate;
+                if (!dueDate) return null;
+                // conversion
+                return dueDate.toDate().toISOString().split("T")[0];
+            })
+            .filter(Boolean);
+    } catch (error) {
+        console.error("getAllTaskDates failed:", error);
+        throw error;
+    }
 }
 
