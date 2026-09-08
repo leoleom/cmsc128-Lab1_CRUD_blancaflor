@@ -1,4 +1,4 @@
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 
@@ -58,9 +58,10 @@ const styles = StyleSheet.create({
 
     highlightCircle: {
         position: "absolute",   // sits behind the icon
-        width: 44,
+        opacity: 0.7,
+        width: 60,
         height: 44,
-        borderRadius: 22,
+        borderRadius: 30,
         backgroundColor: "#fbfbfb", // orange highlight
     },
 });
