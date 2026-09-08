@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { createTask } from "../backend/services/taskService";
 
-const PRIORITY_OPTIONS = ["urgent", "high", "medium", "low"];
+const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
 
 export default function AddTask() {
@@ -18,6 +19,7 @@ export default function AddTask() {
     const [tags, setTags] = useState("");
     const [priority, setPriority] = useState("");
     const [details, setDetails] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
     const [isDetailsFocused, setIsDetailsFocused] = useState(false);
 
     const [showPriorityMenu, setShowPriorityMenu] = useState(false);
@@ -81,13 +83,26 @@ export default function AddTask() {
     };
 
     const handleSave = async () => {
-        // weyts lang firebase
-        console.log({ title, dueDate, tags, priority, details });
-        router.back();
+        if (!title.trim()) {
+            Alert.alert("Please enter a task title.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await createTask({ title, details, dueDate, priority, tags });
+            Alert.alert("Task saved!");
+            router.push("/");
+        } catch (error) {
+            console.error("handleSave failed:", error?.message || String(error));
+            Alert.alert("Couldn't save the task. Please try again.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleCancel = () => {
-        router.back();
+        router.push("/");
     };
 
     return (
@@ -174,8 +189,11 @@ export default function AddTask() {
                     <TouchableOpacity
                         style={[styles.button, styles.saveButton]}
                         onPress={handleSave}
+                        disabled={isSaving}
                     >
-                        <Text style={styles.buttonText}>Save</Text>
+                        <Text style={styles.buttonText}>
+                            {isSaving ? "Saving..." : "Save"}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -432,5 +450,9 @@ const styles = StyleSheet.create({
         color: "#e67e22",
         fontWeight: "600",
         fontSize: 15,
+    },
+    centered: {
+        justifyContent: "center",
+        alignItems: "center",
     },
 });
