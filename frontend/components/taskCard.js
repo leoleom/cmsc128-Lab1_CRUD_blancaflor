@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 const PRIORITY_COLORS = {
     urgent: "#C95656",
@@ -24,12 +25,17 @@ function formatDueDate(dueDate) {
     return `${mm}/${dd}/${yr}   |   ${hh}:${min}`;
 }
 
-export default function TaskCard({ task, onToggleComplete, onEdit, onArchive }) {
+export default function TaskCard({ task, onToggleComplete, onArchive }) {
+    const router = useRouter();
     const { id, title, dueDate, isDone, priority } = task;
 
     const backgroundColor = isDone
         ? DONE_COLOR
         : PRIORITY_COLORS[priority] || PRIORITY_COLORS.low;
+
+    const handleEdit = () => {
+        router.push({ pathname: "/editTask", params: { id } });
+    };
 
     return (
         <View style={[styles.card, { backgroundColor }]}>
@@ -51,10 +57,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onArchive }) 
             </View>
 
             <View style={styles.actions}>
-                <TouchableOpacity onPress={() => onArchive(id)} style={styles.iconButton}>
-                    <Ionicons name="file-tray-outline" size={20} color="#000000" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onEdit(task)} style={styles.iconButton}>
+                <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
                     <Ionicons name="create-outline" size={20} color="#000000" />
                 </TouchableOpacity>
             </View>
@@ -101,9 +104,9 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     actions: {
-        position: "absolute",   
-        top: 10,                
-        right: 10,              
+        position: "absolute",
+        top: 10,
+        right: 10,
         flexDirection: "row",
         gap: 8,
     },
