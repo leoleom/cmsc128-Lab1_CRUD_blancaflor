@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import TaskCard from "../frontend/components/taskCard";
 import { getTasksByDate, toggleTaskComplete } from "../backend/services/taskService";
@@ -8,6 +8,7 @@ export default function HomeScreen() {
   const [dueSoon, setDueSoon] = useState([]);
   const [finished, setFinished] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
 
   const reloadTasks = async () => {
     setLoading(true);
@@ -32,7 +33,7 @@ export default function HomeScreen() {
   const handleToggleComplete = async (task) => {
     try {
       await toggleTaskComplete(task.id, task.isDone);
-      await reloadTasks(); // refresh lists after update
+      await reloadTasks();
     } catch (error) {
       console.error("Failed to toggle task:", error);
     }
@@ -40,51 +41,101 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+
       <View style={styles.header}>
-        <Ionicons name="person-circle-outline" size={50} color="#333" />
+        <Ionicons name="person-circle-outline" size={54} color="#333" />
         <Text style={styles.greeting}>Hello, XXXX!</Text>
       </View>
 
-      {/* Due Soon */}
-      <Text style={styles.sectionTitle}>DUE SOON:</Text>
-      <View style={styles.taskListContainer}>
-        {loading ? (
-          <Text style={styles.emptyText}>Loading...</Text>
-        ) : dueSoon.length === 0 ? (
-          <Text style={styles.emptyText}>No tasks due today</Text>
-        ) : (
-          <FlatList
-            data={dueSoon}
-            renderItem={({ item }) => (
-              <TaskCard
-                task={item}
-                onToggleComplete={() => handleToggleComplete(item)}
-              />
-            )}
-            keyExtractor={item => item.id}
-          />
-        )}
-      </View>
+      {page === "dueSoon" ? (
+        <>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>DUE SOON:</Text>
 
-      {/* Finished Tasks */}
-      <Text style={styles.sectionTitle}>FINISHED TASKS:</Text>
-      <View style={styles.taskListContainer}>
-        {finished.length === 0 ? (
-          <Text style={styles.emptyText}>No finished tasks yet</Text>
-        ) : (
-          <FlatList
-            data={finished}
-            renderItem={({ item }) => (
-              <TaskCard
-                task={item}
-                onToggleComplete={() => handleToggleComplete(item)}
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => console.log("Filter/Search pressed")}
+              >
+                <Ionicons name="options-outline" size={20} color="#333" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
+              >
+                <Ionicons
+                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
+                  size={20}
+                  color="#333"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.taskListContainer}>
+            {loading ? (
+              <Text style={styles.emptyText}>Loading...</Text>
+            ) : dueSoon.length === 0 ? (
+              <Text style={styles.emptyText}>No tasks due today</Text>
+            ) : (
+              <FlatList
+                data={dueSoon}
+                renderItem={({ item }) => (
+                  <TaskCard
+                    task={item}
+                    onToggleComplete={() => handleToggleComplete(item)}
+                  />
+                )}
+                keyExtractor={item => item.id}
               />
             )}
-            keyExtractor={item => item.id}
-          />
-        )}
-      </View>
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>FINISHED TASKS:</Text>
+
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => console.log("Filter/Search pressed")}
+              >
+                <Ionicons name="options-outline" size={20} color="#333" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
+              >
+                <Ionicons
+                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
+                  size={20}
+                  color="#333"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.taskListContainer}>
+            {finished.length === 0 ? (
+              <Text style={styles.emptyText}>No finished tasks yet</Text>
+            ) : (
+              <FlatList
+                data={finished}
+                renderItem={({ item }) => (
+                  <TaskCard
+                    task={item}
+                    onToggleComplete={() => handleToggleComplete(item)}
+                  />
+                )}
+                keyExtractor={item => item.id}
+              />
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -93,36 +144,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    paddingTop: 60,
+  },
+  topBar: {
+    alignItems: "flex-end",
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 16,
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 25,
+    gap: 10,
   },
   greeting: {
-    position: "absolute",
-    marginTop: 6,
-    marginLeft: 65,
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#000000",
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#000000",
-    marginHorizontal: 16,
-    marginTop: 12,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "#E5E5EA",
+    justifyContent: "center",
+    alignItems: "center",
   },
   taskListContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 20,
   },
   emptyText: {
     fontSize: 14,
     color: "#999",
     textAlign: "center",
     marginTop: 20,
-  }
+  },
 });
