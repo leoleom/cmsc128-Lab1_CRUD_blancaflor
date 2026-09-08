@@ -58,6 +58,7 @@ export async function createTask({ title, details, dueDate, priority, tags }) {
                 ? tags.split(",").map((t) => t.trim()).filter(Boolean)
                 : [],
             isDone: false,
+            createdAt: Timestamp.now(),
         };
 
         const docRef = await addDoc(tasksRef, newTask);
@@ -83,8 +84,9 @@ export async function toggleTaskComplete(taskId, currentValue) {
 
 export async function getTasksByDate(dateString) {
     try {
-        const startOfDay = new Date(`${dateString}T00:00:00`);
-        const endOfDay = new Date(`${dateString}T23:59:59.999`);
+        const [year, month, day] = dateString.split("-").map(Number);
+        const startOfDay = new Date(year, month - 1, day);
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
 
         const tasksRef = collection(db, "tasks");
         const q = query(
@@ -122,4 +124,3 @@ export async function getAllTaskDates() {
         throw error;
     }
 }
-

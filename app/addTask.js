@@ -17,7 +17,7 @@ export default function AddTask() {
     const [title, setTitle] = useState("");
     const [dueDate, setDueDate] = useState(new Date());
     const [tags, setTags] = useState("");
-    const [priority, setPriority] = useState("");
+    const [priority, setPriority] = useState("Low");
     const [details, setDetails] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [isDetailsFocused, setIsDetailsFocused] = useState(false);
@@ -63,7 +63,7 @@ export default function AddTask() {
         });
     };
 
-    const handleDateChange = (selectedDate) => {
+    const handleDateChange = (event, selectedDate) => {
         if (selectedDate) {
             const updated = new Date(dueDate);
             updated.setFullYear(selectedDate.getFullYear());
@@ -73,7 +73,7 @@ export default function AddTask() {
         }
     };
 
-    const handleTimeChange = (selectedTime) => {
+    const handleTimeChange = (event, selectedTime) => {
         if (selectedTime) {
             const updated = new Date(dueDate);
             updated.setHours(selectedTime.getHours());
