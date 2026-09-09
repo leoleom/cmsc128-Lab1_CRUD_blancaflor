@@ -166,7 +166,7 @@ export default function EditTask() {
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.form}>
                 <View style={styles.headerRow}>
-                    <View style={styles.headerSpacer} />
+                    <Text style={styles.screenTitle}>EDIT TASK:</Text>
                     <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                         <Ionicons name="close" size={20} color="#333" />
                     </TouchableOpacity>
@@ -383,6 +383,8 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: "#f2f2f2",
+        padding: 5,
+        marginTop: 20,
     },
     centered: {
         justifyContent: "center",
@@ -391,7 +393,7 @@ const styles = StyleSheet.create({
     form: {
         flex: 1,
         padding: 20,
-        paddingTop: 20,
+        paddingTop: 60,
     },
     headerRow: {
         flexDirection: "row",
@@ -399,8 +401,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 20,
     },
-    headerSpacer: {
-        flex: 1,
+    screenTitle: {
+        fontSize: 22,
+        fontWeight: "bold",
+        color: "#000000",
     },
     closeButton: {
         width: 36,

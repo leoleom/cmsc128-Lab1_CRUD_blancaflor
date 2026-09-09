@@ -108,6 +108,8 @@ export default function AddTask() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.form}>
+                <Text style={styles.screenTitle}>ADD TASK:</Text>
+
                 <TextInput
                     style={styles.input}
                     placeholder="Task Title"
@@ -325,6 +327,12 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 20,
         paddingTop: 60,
+    },
+    screenTitle: {
+        fontSize: 22,
+        fontWeight: "bold",
+        color: "#000000",
+        marginBottom: 20,
     },
     input: {
         backgroundColor: "#eee",
