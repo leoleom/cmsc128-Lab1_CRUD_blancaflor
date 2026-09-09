@@ -106,6 +106,21 @@ export async function getTasksByDate(dateString) {
     }
 }
 
+export async function getAllTasks() {
+    try {
+        const tasksRef = collection(db, "tasks");
+        const snapshot = await getDocs(tasksRef);
+
+        return snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        }));
+    } catch (error) {
+        console.error("getAllTasks failed:", error);
+        throw error;
+    }
+}
+
 export async function getAllTaskDates() {
     try {
         const tasksRef = collection(db, "tasks");
