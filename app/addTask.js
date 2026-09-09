@@ -17,7 +17,7 @@ export default function AddTask() {
     const [title, setTitle] = useState("");
     const [dueDate, setDueDate] = useState(new Date());
     const [tags, setTags] = useState("");
-    const [priority, setPriority] = useState("");
+    const [priority, setPriority] = useState("Low");
     const [details, setDetails] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [isDetailsFocused, setIsDetailsFocused] = useState(false);
@@ -63,7 +63,7 @@ export default function AddTask() {
         });
     };
 
-    const handleDateChange = (selectedDate) => {
+    const handleDateChange = (event, selectedDate) => {
         if (selectedDate) {
             const updated = new Date(dueDate);
             updated.setFullYear(selectedDate.getFullYear());
@@ -73,7 +73,7 @@ export default function AddTask() {
         }
     };
 
-    const handleTimeChange = (selectedTime) => {
+    const handleTimeChange = (event, selectedTime) => {
         if (selectedTime) {
             const updated = new Date(dueDate);
             updated.setHours(selectedTime.getHours());
@@ -90,9 +90,9 @@ export default function AddTask() {
 
         setIsSaving(true);
         try {
-            await createTask({ title, details, dueDate, priority, tags });
+            const createdTask = await createTask({ title, details, dueDate, priority, tags });
             Alert.alert("Task saved!");
-            router.push("/");
+            router.replace({ pathname: "/", params: { createdTaskId: createdTask.id } });
         } catch (error) {
             console.error("handleSave failed:", error?.message || String(error));
             Alert.alert("Couldn't save the task. Please try again.");
@@ -108,6 +108,8 @@ export default function AddTask() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.form}>
+                <Text style={styles.screenTitle}>ADD TASK:</Text>
+
                 <TextInput
                     style={styles.input}
                     placeholder="Task Title"
@@ -326,6 +328,12 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingTop: 60,
     },
+    screenTitle: {
+        fontSize: 22,
+        fontWeight: "bold",
+        color: "#000000",
+        marginBottom: 20,
+    },
     input: {
         backgroundColor: "#eee",
         borderRadius: 10,
@@ -382,12 +390,11 @@ const styles = StyleSheet.create({
     },
     buttonRow: {
         flexDirection: "row",
-        justifyContent: "flex-end",
         gap: 16,
     },
     button: {
+        flex: 1,
         paddingVertical: 14,
-        paddingHorizontal: 30,
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
