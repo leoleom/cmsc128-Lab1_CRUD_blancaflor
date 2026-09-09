@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert } from "react-native";import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { getTaskById, updateTask, deleteTask } from "../backend/services/taskService";
+import { getTaskById, updateTask } from "../backend/services/taskService";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
@@ -40,13 +41,12 @@ export default function EditTask() {
     const [showTimePopover, setShowTimePopover] = useState(false);
     const [timePopoverPos, setTimePopoverPos] = useState({ top: 0, left: 0 });
 
-    // Load the existing task once, on mount
     useEffect(() => {
         const loadTask = async () => {
             try {
                 const task = await getTaskById(id);
                 if (!task) {
-                    alert("Not found", "This task no longer exists.");
+                    Alert.alert("Not found", "This task no longer exists.");
                     router.back();
                     return;
                 }
@@ -58,7 +58,7 @@ export default function EditTask() {
                     setDueDate(task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate));
                 }
             } catch (error) {
-                alert("Error", "Couldn't load this task.");
+                Alert.alert("Error", "Couldn't load this task.");
                 router.back();
             } finally {
                 setIsLoading(false);
@@ -147,8 +147,7 @@ export default function EditTask() {
                     onPress: async () => {
                         setIsDeleting(true);
                         try {
-                            await deleteTask(id);
-                            router.push("/");
+                            router.replace({ pathname: "/", params: { pendingDeleteId: id } });
                         } catch (error) {
                             Alert.alert("Error", "Couldn't delete this task. Please try again.");
                             setIsDeleting(false);
@@ -266,7 +265,6 @@ export default function EditTask() {
                 </View>
             </View>
 
-            {/* Priority anchored dropdown */}
             <Modal
                 visible={showPriorityMenu}
                 transparent
@@ -307,7 +305,6 @@ export default function EditTask() {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Date popover */}
             <Modal
                 visible={showDatePopover}
                 transparent
@@ -469,12 +466,11 @@ const styles = StyleSheet.create({
     },
     buttonRow: {
         flexDirection: "row",
-        justifyContent: "flex-end",
         gap: 16,
     },
     button: {
+        flex: 1,
         paddingVertical: 14,
-        paddingHorizontal: 30,
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",

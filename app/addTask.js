@@ -90,9 +90,9 @@ export default function AddTask() {
 
         setIsSaving(true);
         try {
-            await createTask({ title, details, dueDate, priority, tags });
+            const createdTask = await createTask({ title, details, dueDate, priority, tags });
             Alert.alert("Task saved!");
-            router.push("/");
+            router.replace({ pathname: "/", params: { createdTaskId: createdTask.id } });
         } catch (error) {
             console.error("handleSave failed:", error?.message || String(error));
             Alert.alert("Couldn't save the task. Please try again.");
@@ -382,12 +382,11 @@ const styles = StyleSheet.create({
     },
     buttonRow: {
         flexDirection: "row",
-        justifyContent: "flex-end",
         gap: 16,
     },
     button: {
+        flex: 1,
         paddingVertical: 14,
-        paddingHorizontal: 30,
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
