@@ -21,7 +21,7 @@ export default function EditTask() {
     const priorityBoxRef = useRef(null);
     const dateBoxRef = useRef(null);
 
-    const [isLoading, setIsLoading] = useState(true);
+    const [setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
