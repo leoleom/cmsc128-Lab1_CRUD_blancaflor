@@ -1,17 +1,40 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { registerUser } from "../backend/services/authService";
 
 export default function Signup() {
     const router = useRouter();
     const [displayName, setDisplayName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSignup = () => {
-        // TODO signup
-        console.log("Signup pressed", { displayName, email, password });
+    const handleSignup = async () => {
+        if (!displayName.trim() || !email.trim() || !password) {
+            Alert.alert("Missing info", "Please fill in all fields.");
+            return;
+        }
+
+        if (password.length < 6) {
+            Alert.alert("Weak password", "Password must be at least 6 characters.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await registerUser({ email: email.trim(), password, displayName: displayName.trim() });
+            router.replace("/");
+        } catch (error) {
+            if (error.code === "auth/email-already-in-use") {
+                Alert.alert("Sign up failed", "That email is already registered.");
+            } else {
+                Alert.alert("Sign up failed", "Please try again.");
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -46,8 +69,11 @@ export default function Signup() {
                     secureTextEntry
                 />
 
-                <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-                    <Text style={styles.buttonText}>Sign Up</Text>
+                <TouchableOpacity style={styles.signupButton}
+                    onPress={handleSignup} disabled={isSubmitting}>
+                    <Text style={styles.buttonText}>
+                        {isSubmitting ? "Creating account..." : "Sign Up"}
+                    </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.linkRow}>

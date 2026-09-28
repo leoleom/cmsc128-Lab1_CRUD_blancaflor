@@ -1,17 +1,31 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { loginUser } from "../backend/services/authService";
 
 
 export default function Login() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleLogin = async () => {
-        // TODO handle signup
-        console.log("Login pressed", { email, password });
+        if (!email.trim() || !password) {
+            Alert.alert("Missing info", "Please enter both email and password.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await loginUser({ email: email.trim(), password });
+            router.replace("/");
+        } catch (error) {
+            Alert.alert("Login failed", "Incorrect email or password.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -39,8 +53,10 @@ export default function Login() {
                 />
 
                 <TouchableOpacity style={styles.loginButton}
-                    onPress={handleLogin}>
-                    <Text style={styles.buttonText}>Log In</Text>
+                    onPress={handleLogin} disabled={isSubmitting}>
+                    <Text style={styles.buttonText}>
+                        {isSubmitting ? "Logging in..." : "Log In"}
+                    </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.linkRow}>
