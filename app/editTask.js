@@ -21,7 +21,7 @@ export default function EditTask() {
     const priorityBoxRef = useRef(null);
     const dateBoxRef = useRef(null);
 
-    const [setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -382,7 +382,7 @@ export default function EditTask() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#f2f2f2",
+        backgroundColor: "#fff",
         padding: 5,
         marginTop: 20,
     },

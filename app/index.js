@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
+import { useAuth } from "../frontend/context/AuthContext";
+import { useRouter } from "expo-router";
 
 const UNDO_DURATION = 5000;
 
@@ -15,6 +17,7 @@ function normalizeTags(tags) {
 }
 
 export default function HomeScreen() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
@@ -26,6 +29,8 @@ export default function HomeScreen() {
   const deletionTimerRef = useRef(null);
   const handledDeleteIdRef = useRef(null);
   const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
+
+  const router = useRouter();
 
   const reloadTasks = useCallback(async () => {
     setLoading(true);
@@ -178,7 +183,12 @@ export default function HomeScreen() {
 
       <View style={styles.header}>
         <Ionicons name="person-circle-outline" size={54} color="#333" />
-        <Text style={styles.greeting}>Hello, XXXX!</Text>
+        <Text style={styles.greeting} numberOfLines={1}>
+          Hello, {user?.displayName || user?.email || "there"}!
+        </Text>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/profile")}>
+          <Ionicons name="settings-outline" size={20} color="#333" />
+        </TouchableOpacity>
       </View>
 
       {page === "dueSoon" ? (
@@ -343,6 +353,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   greeting: {
+    flex: 1,
     fontSize: 32,
     fontWeight: "bold",
     color: "#000000",

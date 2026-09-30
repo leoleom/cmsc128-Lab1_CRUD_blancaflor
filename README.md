@@ -1,12 +1,14 @@
 # Task Manager
 
-A cross-platform task management app built for CMSC 128. The app allows users to create, view, update, complete, filter, and delete tasks.
+A cross-platform task management app built for CMSC 128. Users create an account or sign in, then create, view, update, complete, filter, sort, and delete their tasks. Each task is associated with the signed-in Firebase user.
 
 ## Tech stack
 
 - **Frontend/UI library:** React Native (React) with Expo SDK 57
 - **Navigation:** Expo Router
-- **Backend/database:** Firebase Cloud Firestore
+- **Backend/database:** Firebase client SDK and Cloud Firestore; there is no separate application server
+- **Authentication:** Firebase Authentication with email and password
+- **Native session persistence:** Firebase Auth persistence backed by AsyncStorage
 - **Programming language:** JavaScript
 - **Icons:** Expo Vector Icons (Ionicons)
 
@@ -16,8 +18,14 @@ React Native and Expo allow the app to run on Android, iOS, and the web from one
 
 Cloud Firestore was chosen because it provides a hosted NoSQL database with a straightforward JavaScript SDK. It works well for task records, supports real-time-ready document operations, and avoids requiring a separate backend server for this project.
 
+Firebase Authentication handles account credentials and auth state. The app uses the Firebase JavaScript SDK directly from the React Native client; it does not expose a custom REST API.
+
 ## Features
 
+- Create an account with a display name, email, and password; log in and log out
+- Recover a password through a Firebase password-reset email
+- Update the profile display name, request an email change with verification, and change the password after reauthentication
+- Keep native sign-in state across app launches and route signed-out users to the login screens
 - Create tasks with a title, details, due date/time, priority, and tags
 - View tasks due today
 - View finished tasks
@@ -35,7 +43,7 @@ Install the following before running the project:
 
 - Node.js and npm
 - Expo-compatible device or emulator, or a web browser
-- A Firebase project with Cloud Firestore enabled
+- A Firebase project with Email/Password Authentication and Cloud Firestore enabled
 
 ## Local setup
 
@@ -63,7 +71,9 @@ Install the following before running the project:
    EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
-4. Make sure Cloud Firestore is enabled in the Firebase console. The app stores task documents in the `tasks` collection.
+4. In the Firebase console, enable **Authentication > Sign-in method > Email/Password** and create a **Cloud Firestore** database. The app stores task documents in the `tasks` collection. No database migration or seed data is required; task documents are created when users add tasks.
+
+5. Configure Firestore Security Rules to authorize access only to the authenticated owner of each task. The app stores the Firebase user's UID in each task's `userId` field and filters task lists by that UID, but client-side filtering is not a security boundary. This repository does not include deployable Firestore rules.
 
 ## Run the app
 
@@ -83,12 +93,32 @@ npx expo start --ios
 
 For Android or iOS, the corresponding emulator or development device must be available.
 
+## Authentication and sessions
+
+Authentication is provided by Firebase Authentication's email/password provider. Sign-up creates a Firebase user and sets the user's display name. Login signs in with the email and password. The app listens for Firebase auth-state changes in `AuthContext`; the root layout waits for the initial auth check and then redirects signed-out users to `/login` and signed-in users away from the public login, sign-up, and password-reset screens.
+
+On native platforms, Firebase Auth persistence is initialized with React Native AsyncStorage, so the Firebase session can be restored after restarting the app. On web, the app uses Firebase's standard web Auth initialization. Logging out calls Firebase `signOut` and ends the current session.
+
+Password recovery is email-based: the user enters their email on **Forgot Password**, and Firebase sends a password-reset link using `sendPasswordResetEmail`. The app does not store or handle password-reset tokens itself. The profile screen also supports changing a password after reauthentication with the current password, and requesting an email change after reauthentication; Firebase sends a verification link, and the email is not changed until it is confirmed.
+
+The authentication service in [`backend/services/authService.js`](./backend/services/authService.js) exposes these equivalent operations (there are no HTTP endpoints):
+
+```js
+await registerUser({ email, password, displayName });
+await loginUser({ email, password });
+await requestPasswordReset(email);
+await changeUserPassword({ currentPassword, newPassword });
+await requestEmailChange({ currentPassword, newEmail });
+await logoutUser();
+```
+
 ## Firestore data model
 
 Tasks are stored in the `tasks` collection. A task document has the following shape:
 
 ```js
 {
+  userId: "firebase-auth-uid",
   title: "Submit lab report",
   details: "Finish the CRUD documentation",
   dueDate: Timestamp,
@@ -169,9 +199,26 @@ This calls Firestore `deleteDoc`. The edit screen first returns to the task list
 
 ## Screenshots
 
+#### Login Screen
+
+![Login screenshot](assets/screenshots-app/login.jpg)
+
+#### Sign Up Screen
+
+![Sign Up screenshot](assets/screenshots-app/signup.jpg)
+
+#### Forgot Password Screen
+
+![Forgot Password screenshot](assets/screenshots-app/resetpassword.jpg)
+
 #### Home Screen
 
 ![Task list screenshot](assets/screenshots-app/homescreen.jpg)
+
+#### Profile Screen
+
+
+![Profile screenshot](assets/screenshots-app/profile.jpg)
 
 #### Add Task Screen
 
