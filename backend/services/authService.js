@@ -2,24 +2,14 @@ import {createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onA
 import { auth } from "../firebaseConfig";
 
 export async function registerUser({ email, password, displayName }) {
-  try {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(credential.user, { displayName });
-    return credential.user;
-  } catch (error) {
-    console.error("registerUser failed:", error);
-    throw error;
-  }
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(credential.user, { displayName });
+  return credential.user;
 }
 
 export async function loginUser({ email, password }) {
-  try {
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    return credential.user;
-  } catch (error) {
-    console.error("loginUser failed:", error);
-    throw error;
-  }
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  return credential.user;
 }
 
 export async function logoutUser() {
