@@ -1,37 +1,39 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { registerUser } from "../backend/services/authService";
+import { requestPasswordReset } from "../backend/services/authService";
 
-export default function Signup() {
+function showAlert(title, message) {
+    if (Platform.OS === "web") {
+        window.alert(message ? `${title}\n\n${message}` : title);
+    } else {
+        Alert.alert(title, message);
+    }
+}
+
+export default function ForgotPassword() {
     const router = useRouter();
-    const [displayName, setDisplayName] = useState("");
     const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSignup = async () => {
-        if (!displayName.trim() || !email.trim() || !password) {
-            Alert.alert("Missing info", "Please fill in all fields.");
-            return;
-        }
-
-        if (password.length < 6) {
-            Alert.alert("Weak password", "Password must be at least 6 characters.");
+    const handleReset = async () => {
+        if (!email.trim()) {
+            showAlert("Missing email", "Please enter your email address.");
             return;
         }
 
         setIsSubmitting(true);
         try {
-            await registerUser({ email: email.trim(), password, displayName: displayName.trim() });
-            router.replace("/");
+            await requestPasswordReset(email.trim());
+            showAlert(
+                "Check your email",
+                "If an account exists for that email, a password reset link has been sent."
+            );
+            router.back();
         } catch (error) {
-            if (error.code === "auth/email-already-in-use") {
-                Alert.alert("Sign up failed", "That email is already registered.");
-            } else {
-                Alert.alert("Sign up failed", "Please try again.");
-            }
+            console.error("requestPasswordReset failed:", error);
+            showAlert("Error", "Couldn't send the reset email. Please try again.");
         } finally {
             setIsSubmitting(false);
         }
@@ -40,15 +42,10 @@ export default function Signup() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.form}>
-                <Text style={styles.screenTitle}>SIGN UP</Text>
-
-                <TextInput
-                    style={styles.input}
-                    placeholder="Display Name"
-                    placeholderTextColor="#999"
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                />
+                <Text style={styles.screenTitle}>Reset Password</Text>
+                <Text style={styles.subtitle}>
+                    Enter your account email and we'll send you a link to reset your password.
+                </Text>
 
                 <TextInput
                     style={styles.input}
@@ -60,26 +57,20 @@ export default function Signup() {
                     keyboardType="email-address"
                 />
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    placeholderTextColor="#999"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                />
-
-                <TouchableOpacity style={styles.signupButton}
-                    onPress={handleSignup} disabled={isSubmitting}>
+                <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={handleReset}
+                    disabled={isSubmitting}
+                >
                     <Text style={styles.buttonText}>
-                        {isSubmitting ? "Creating account..." : "Sign Up"}
+                        {isSubmitting ? "Sending..." : "Send Reset Link"}
                     </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.linkRow}>
-                    Already have an account?{" "}
+                    Remembered your password?{" "}
                     <Text style={styles.linkText} onPress={() => router.push("/login")}>
-                        Log in
+                        Log In
                     </Text>
                 </Text>
             </View>
@@ -101,6 +92,12 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontWeight: "bold",
         color: "#000",
+        marginBottom: 12,
+        textAlign: "center"
+    },
+    subtitle: {
+        fontSize: 14,
+        color: "#666",
         marginBottom: 24,
         textAlign: "center"
     },
@@ -114,7 +111,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
         fontSize: 14,
     },
-    signupButton: {
+    resetButton: {
         backgroundColor: "#4caf50",
         paddingVertical: 14,
         borderRadius: 10,
@@ -129,10 +126,10 @@ const styles = StyleSheet.create({
     linkRow: {
         textAlign: "center",
         marginTop: 18,
-        color: "#333",
+        color: "#333"
     },
     linkText: {
         color: "#e67e22",
-        fontWeight: "600",
+        fontWeight: "600"
     },
 });

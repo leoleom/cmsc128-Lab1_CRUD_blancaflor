@@ -5,7 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import BottomNav from "../frontend/components/bottomNav";
 import { AuthProvider, useAuth } from "../frontend/context/AuthContext";
 
-const PUBLIC_ROUTES = ["/login", "/signUp"];
+const PUBLIC_ROUTES = ["/login", "/signUp", "/forgotPassword"];
 
 function AuthGate() {
     const router = useRouter();

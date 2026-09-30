@@ -70,7 +70,6 @@ export default function Profile() {
             resetPasswordFields();
             showAlert("Success", "Your password has been updated.");
         } catch (error) {
-            console.error("changeUserPassword failed:", error);
             if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
                 showAlert("Incorrect password", "Your current password is wrong.");
             } else if (error.code === "auth/requires-recent-login") {
@@ -111,7 +110,6 @@ export default function Profile() {
             showAlert("Success", "Your display name has been updated.");
             closeNameModal();
         } catch (error) {
-            console.error("updateDisplayName failed:", error);
             showAlert("Error", "Couldn't update your display name. Please try again.");
         } finally {
             setIsSavingName(false);
@@ -149,7 +147,6 @@ export default function Profile() {
 
         setIsSavingEmail(true);
         try {
-            console.log("Sending verification to:", JSON.stringify(trimmedEmail));
             await requestEmailChange({ currentPassword: editEmailPassword, newEmail: trimmedEmail });
             showAlert(
                 "Check your new email",
@@ -206,7 +203,7 @@ export default function Profile() {
 
             <View style={styles.avatarSection}>
                 <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person-circle-outline" size={125} color="#333" />
+                    <Ionicons name="person-circle-outline" size={72} color="#333" />
                 </View>
             </View>
 
@@ -382,7 +379,7 @@ export default function Profile() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#f2f2f2"
+        backgroundColor: "#fff"
     },
     headerRow: {
         flexDirection: "row",
@@ -408,6 +405,7 @@ const styles = StyleSheet.create({
         backgroundColor: "#e0e0e0",
         justifyContent: "center",
         alignItems: "center",
+        overflow: "hidden",
     },
     infoSection: {
         paddingHorizontal: 20,

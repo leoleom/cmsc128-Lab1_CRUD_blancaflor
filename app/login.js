@@ -10,6 +10,7 @@ export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isForgotPressed, setIsForgotPressed] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -66,6 +67,17 @@ export default function Login() {
                     secureTextEntry
                 />
 
+                <View style={styles.forgotPasswordRow}>
+                    <Text
+                        style={[styles.forgotPasswordText, isForgotPressed && styles.forgotPasswordTextPressed]}
+                        onPress={() => router.push("/forgotPassword")}
+                        onPressIn={() => setIsForgotPressed(true)}
+                        onPressOut={() => setIsForgotPressed(false)}
+                    >
+                        Forgot Password?
+                    </Text>
+                </View>
+
                 <TouchableOpacity style={styles.loginButton}
                     onPress={handleLogin} disabled={isSubmitting}>
                     <Text style={styles.buttonText}>
@@ -87,7 +99,7 @@ export default function Login() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#f2f2f2"
+        backgroundColor: "#fff"
     },
     form: {
         flex: 1,
@@ -131,5 +143,17 @@ const styles = StyleSheet.create({
     linkText: {
         color: "#e67e22",
         fontWeight: "600",
+    },
+    forgotPasswordRow: {
+        alignItems: "flex-end",
+        marginBottom: 8,
+    },
+    forgotPasswordText: {
+        color: "#333",
+        fontWeight: "600",
+        fontSize: 13,
+    },
+    forgotPasswordTextPressed: {
+        color: "#e67e22",
     },
 });

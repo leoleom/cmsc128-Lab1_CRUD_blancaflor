@@ -382,7 +382,7 @@ export default function EditTask() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#f2f2f2",
+        backgroundColor: "#fff",
         padding: 5,
         marginTop: 20,
     },

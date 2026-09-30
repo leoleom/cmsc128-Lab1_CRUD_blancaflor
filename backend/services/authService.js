@@ -1,5 +1,6 @@
-import {createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, 
-updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail,} from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, 
+updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail,
+sendPasswordResetEmail } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../firebaseConfig";
 
@@ -59,6 +60,10 @@ export async function requestEmailChange({ currentPassword, newEmail }) {
   await AsyncStorage.setItem("pendingEmailChangeNotice", "true");
 }
 
+export async function requestPasswordReset(email) {
+  await sendPasswordResetEmail(auth, email);
+}
+
 export async function consumePendingEmailChangeNotice() {
   const flag = await AsyncStorage.getItem("pendingEmailChangeNotice");
   if (flag) {
@@ -67,3 +72,4 @@ export async function consumePendingEmailChangeNotice() {
   }
   return false;
 }
+

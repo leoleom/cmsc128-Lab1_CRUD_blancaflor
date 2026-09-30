@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
 import { useAuth } from "../frontend/context/AuthContext";
+import { useRouter } from "expo-router";
 
 const UNDO_DURATION = 5000;
 
@@ -28,6 +29,8 @@ export default function HomeScreen() {
   const deletionTimerRef = useRef(null);
   const handledDeleteIdRef = useRef(null);
   const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
+
+  const router = useRouter();
 
   const reloadTasks = useCallback(async () => {
     setLoading(true);
@@ -183,6 +186,9 @@ export default function HomeScreen() {
         <Text style={styles.greeting} numberOfLines={1}>
           Hello, {user?.displayName || user?.email || "there"}!
         </Text>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/profile")}>
+          <Ionicons name="settings-outline" size={20} color="#333" />
+        </TouchableOpacity>
       </View>
 
       {page === "dueSoon" ? (
