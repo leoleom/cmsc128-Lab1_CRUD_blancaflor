@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { loginUser } from "../backend/services/authService";
+import { loginUser, consumePendingEmailChangeNotice } from "../backend/services/authService";
 
 
 export default function Login() {
@@ -10,6 +10,20 @@ export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        (async () => {
+            const shouldNotify = await consumePendingEmailChangeNotice();
+            if (shouldNotify) {
+                const message = "If you recently changed your email, please log in with your new email address.";
+                if (Platform.OS === "web") {
+                    window.alert(message);
+                } else {
+                    Alert.alert("Email updated", message);
+                }
+            }
+        })();
+    }, []);
 
     const handleLogin = async () => {
         if (!email.trim() || !password) {

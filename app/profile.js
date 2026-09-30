@@ -1,10 +1,18 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { logoutUser, changeUserPassword } from "../backend/services/authService";
+import { logoutUser, changeUserPassword, updateDisplayName, requestEmailChange } from "../backend/services/authService";
 import { useAuth } from "../frontend/context/AuthContext";
+
+function showAlert(title, message) {
+    if (Platform.OS === "web") {
+        window.alert(message ? `${title}\n\n${message}` : title);
+    } else {
+        const { Alert } = require("react-native");
+        Alert.alert(title, message);
+    }
+}
 
 function maskEmail(email) {
     if (!email) return "";
@@ -16,7 +24,6 @@ function maskEmail(email) {
 }
 
 export default function Profile() {
-    const router = useRouter();
     const { user } = useAuth();
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -25,9 +32,14 @@ export default function Profile() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleClose = () => {
-        router.back();
-    };
+    const [showNameModal, setShowNameModal] = useState(false);
+    const [editDisplayName, setEditDisplayName] = useState("");
+    const [isSavingName, setIsSavingName] = useState(false);
+
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [editEmail, setEditEmail] = useState("");
+    const [editEmailPassword, setEditEmailPassword] = useState("");
+    const [isSavingEmail, setIsSavingEmail] = useState(false);
 
     const resetPasswordFields = () => {
         setCurrentPassword("");
@@ -37,17 +49,17 @@ export default function Profile() {
 
     const handleChangePassword = async () => {
         if (!currentPassword || !newPassword || !confirmPassword) {
-            Alert.alert("Missing info", "Please fill in all password fields.");
+            showAlert("Missing info", "Please fill in all password fields.");
             return;
         }
 
         if (newPassword.length < 6) {
-            Alert.alert("Weak password", "New password must be at least 6 characters.");
+            showAlert("Weak password", "New password must be at least 6 characters.");
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            Alert.alert("Mismatch", "New password and confirmation don't match.");
+            showAlert("Mismatch", "New password and confirmation don't match.");
             return;
         }
 
@@ -56,17 +68,106 @@ export default function Profile() {
             await changeUserPassword({ currentPassword, newPassword });
             setShowPasswordModal(false);
             resetPasswordFields();
-            Alert.alert("Success", "Your password has been updated.");
+            showAlert("Success", "Your password has been updated.");
         } catch (error) {
+            console.error("changeUserPassword failed:", error);
             if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
-                Alert.alert("Incorrect password", "Your current password is wrong.");
+                showAlert("Incorrect password", "Your current password is wrong.");
             } else if (error.code === "auth/requires-recent-login") {
-                Alert.alert("Please log in again", "For security, log out and back in, then retry.");
+                showAlert("Please log in again", "For security, log out and back in, then retry.");
             } else {
-                Alert.alert("Error", "Couldn't update your password. Please try again.");
+                showAlert("Error", "Couldn't update your password. Please try again.");
             }
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const openNameModal = () => {
+        setEditDisplayName(user?.displayName || "");
+        setShowNameModal(true);
+    };
+
+    const closeNameModal = () => {
+        setShowNameModal(false);
+    };
+
+    const handleSaveName = async () => {
+        const trimmedName = editDisplayName.trim();
+
+        if (!trimmedName) {
+            showAlert("Missing name", "Please enter a display name.");
+            return;
+        }
+
+        if (trimmedName === (user?.displayName || "")) {
+            closeNameModal();
+            return;
+        }
+
+        setIsSavingName(true);
+        try {
+            await updateDisplayName(trimmedName);
+            showAlert("Success", "Your display name has been updated.");
+            closeNameModal();
+        } catch (error) {
+            console.error("updateDisplayName failed:", error);
+            showAlert("Error", "Couldn't update your display name. Please try again.");
+        } finally {
+            setIsSavingName(false);
+        }
+    };
+
+    const openEmailModal = () => {
+        setEditEmail(user?.email || "");
+        setEditEmailPassword("");
+        setShowEmailModal(true);
+    };
+
+    const closeEmailModal = () => {
+        setShowEmailModal(false);
+        setEditEmailPassword("");
+    };
+
+    const handleSaveEmail = async () => {
+        const trimmedEmail = editEmail.trim();
+
+        if (!trimmedEmail) {
+            showAlert("Missing email", "Please enter an email address.");
+            return;
+        }
+
+        if (trimmedEmail === (user?.email || "")) {
+            closeEmailModal();
+            return;
+        }
+
+        if (!editEmailPassword) {
+            showAlert("Password required", "Enter your current password to change your email.");
+            return;
+        }
+
+        setIsSavingEmail(true);
+        try {
+            console.log("Sending verification to:", JSON.stringify(trimmedEmail));
+            await requestEmailChange({ currentPassword: editEmailPassword, newEmail: trimmedEmail });
+            showAlert(
+                "Check your new email",
+                "We sent a verification link to your new email address. Your email won't change until you confirm it there."
+            );
+            closeEmailModal();
+        } catch (error) {
+            if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
+                showAlert("Incorrect password", "Your current password is wrong.");
+            } else if (error.code === "auth/requires-recent-login") {
+                showAlert("Please log in again", "For security, log out and back in, then retry.");
+            } else if (error.code === "auth/email-already-in-use") {
+                showAlert("Email taken", "That email is already registered to another account.");
+            } else {
+                showAlert("Error", `Couldn't update your email. (${error.code || error.message})`);
+            }
+        } finally {
+            setIsSavingEmail(false);
         }
     };
 
@@ -86,6 +187,7 @@ export default function Profile() {
             return;
         }
 
+        const { Alert } = require("react-native");
         Alert.alert(
             "Log out",
             "Are you sure you want to log out?",
@@ -110,10 +212,20 @@ export default function Profile() {
 
             <View style={styles.infoSection}>
                 <Text style={styles.label}>Display Name</Text>
-                <Text style={styles.value}>{user?.displayName || "Not set"}</Text>
+                <View style={styles.valueRow}>
+                    <Text style={styles.value}>{user?.displayName || "Not set"}</Text>
+                    <TouchableOpacity onPress={openNameModal}>
+                        <Ionicons name="create-outline" size={22} color="#333" />
+                    </TouchableOpacity>
+                </View>
 
                 <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>{maskEmail(user?.email)}</Text>
+                <View style={styles.valueRow}>
+                    <Text style={styles.value}>{maskEmail(user?.email)}</Text>
+                    <TouchableOpacity onPress={openEmailModal}>
+                        <Ionicons name="create-outline" size={22} color="#333" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <TouchableOpacity
@@ -128,6 +240,88 @@ export default function Profile() {
                 <Ionicons name="log-out-outline" size={18} color="#fff" />
                 <Text style={styles.logoutButtonText}>Log Out</Text>
             </TouchableOpacity>
+
+            <Modal
+                visible={showNameModal}
+                transparent
+                animationType="fade"
+                onRequestClose={closeNameModal}
+            >
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalPanel}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Edit Display Name</Text>
+                            <TouchableOpacity onPress={closeNameModal}>
+                                <Ionicons name="close" size={22} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Display Name"
+                            placeholderTextColor="#999"
+                            value={editDisplayName}
+                            onChangeText={setEditDisplayName}
+                        />
+
+                        <TouchableOpacity
+                            style={styles.saveButton}
+                            onPress={handleSaveName}
+                            disabled={isSavingName}
+                        >
+                            <Text style={styles.saveButtonText}>
+                                {isSavingName ? "Saving..." : "Save"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                visible={showEmailModal}
+                transparent
+                animationType="fade"
+                onRequestClose={closeEmailModal}
+            >
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalPanel}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Edit Email</Text>
+                            <TouchableOpacity onPress={closeEmailModal}>
+                                <Ionicons name="close" size={22} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="New Email"
+                            placeholderTextColor="#999"
+                            value={editEmail}
+                            onChangeText={setEditEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                        />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Current Password"
+                            placeholderTextColor="#999"
+                            value={editEmailPassword}
+                            onChangeText={setEditEmailPassword}
+                            secureTextEntry
+                        />
+
+                        <TouchableOpacity
+                            style={styles.saveButton}
+                            onPress={handleSaveEmail}
+                            disabled={isSavingEmail}
+                        >
+                            <Text style={styles.saveButtonText}>
+                                {isSavingEmail ? "Saving..." : "Save"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             <Modal
                 visible={showPasswordModal}
@@ -203,14 +397,6 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#000"
     },
-    closeButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        backgroundColor: "#ddd",
-        justifyContent: "center",
-        alignItems: "center",
-    },
     avatarSection: {
         alignItems: "center",
         marginBottom: 24
@@ -230,20 +416,25 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 13,
         color: "#888",
-        marginTop: 12
+        marginTop: 12,
+    },
+    valueRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 4,
     },
     value: {
         fontSize: 17,
         color: "#000",
         fontWeight: "600",
-        marginTop: 4
     },
     actionButton: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        backgroundColor: "#eee",
+        backgroundColor: "#e5e4e4",
         borderRadius: 10,
         paddingVertical: 14,
         marginHorizontal: 20,
