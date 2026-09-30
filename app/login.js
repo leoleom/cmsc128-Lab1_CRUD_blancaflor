@@ -1,30 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { loginUser, consumePendingEmailChangeNotice } from "../backend/services/authService";
+import { loginUser } from "../backend/services/authService";
 
 
 export default function Login() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [focusedField, setFocusedField] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isForgotPressed, setIsForgotPressed] = useState(false);
-
-    useEffect(() => {
-        (async () => {
-            const shouldNotify = await consumePendingEmailChangeNotice();
-            if (shouldNotify) {
-                const message = "If you recently changed your email, please log in with your new email address.";
-                if (Platform.OS === "web") {
-                    window.alert(message);
-                } else {
-                    Alert.alert("Email updated", message);
-                }
-            }
-        })();
-    }, []);
 
     const handleLogin = async () => {
         if (!email.trim() || !password) {
@@ -48,24 +37,56 @@ export default function Login() {
             <View style={styles.form}>
                 <Text style={styles.screenTitle}>LOG IN</Text>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#999"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                />
+                <View
+                    style={[
+                        styles.inputContainer,
+                        focusedField === "email" && styles.inputContainerFocused,
+                    ]}
+                >
+                    <TextInput
+                        style={styles.fieldInput}
+                        placeholder="Email"
+                        placeholderTextColor="#999"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        onFocus={() => setFocusedField("email")}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    placeholderTextColor="#999"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                />
+                <View
+                    style={[
+                        styles.inputContainer,
+                        styles.passwordInputContainer,
+                        focusedField === "password" && styles.inputContainerFocused,
+                    ]}
+                >
+                    <TextInput
+                        style={[styles.fieldInput, styles.passwordInput]}
+                        placeholder="Password"
+                        placeholderTextColor="#999"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        underlineColorAndroid="transparent"
+                        onFocus={() => setFocusedField("password")}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity
+                        style={styles.passwordVisibilityButton}
+                        onPress={() => setShowPassword((visible) => !visible)}
+                        accessibilityRole="button"
+                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                    >
+                        <Ionicons
+                            name={showPassword ? "eye-off-outline" : "eye-outline"}
+                            size={20}
+                            color="#555"
+                        />
+                    </TouchableOpacity>
+                </View>
 
                 <View style={styles.forgotPasswordRow}>
                     <Text
@@ -113,15 +134,45 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         textAlign: "center"
     },
-    input: {
+    inputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        width: "100%",
+        height: 46,
         backgroundColor: "#eee",
         borderRadius: 10,
         borderWidth: 1,
         borderColor: "#ccc",
-        paddingHorizontal: 14,
-        paddingVertical: 12,
         marginBottom: 14,
+    },
+    inputContainerFocused: {
+        borderColor: "#e67e22",
+    },
+    fieldInput: {
+        flex: 1,
+        height: "100%",
+        paddingHorizontal: 14,
         fontSize: 14,
+        backgroundColor: "transparent",
+        borderWidth: 0,
+        ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+    },
+    passwordInputContainer: {
+        position: "relative",
+        overflow: "hidden",
+    },
+    passwordInput: {
+        paddingRight: 48,
+    },
+    passwordVisibilityButton: {
+        position: "absolute",
+        top: 0,
+        right: 2,
+        bottom: 0,
+        width: 40,
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1,
     },
     loginButton: {
         backgroundColor: "#4caf50",
