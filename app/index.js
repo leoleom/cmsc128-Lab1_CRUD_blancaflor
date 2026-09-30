@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert, Platform } from "react-native";import { Ionicons } from "@expo/vector-icons";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
-import { logoutUser } from "../backend/services/authService";
 import { useAuth } from "../frontend/context/AuthContext";
 
 const UNDO_DURATION = 5000;
@@ -29,31 +29,6 @@ export default function HomeScreen() {
   const handledDeleteIdRef = useRef(null);
   const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
 
-  const performLogout = async () => {
-    try {
-      await logoutUser();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
-
-  const handleLogout = () => {
-    if (Platform.OS === "web") {
-      if (window.confirm("Are you sure you want to log out?")) {
-        performLogout();
-      }
-      return;
-    }
-
-    Alert.alert(
-      "Log out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Log out", style: "destructive", onPress: performLogout },
-      ]
-    );
-  };
   const reloadTasks = useCallback(async () => {
     setLoading(true);
     try {
@@ -208,9 +183,6 @@ export default function HomeScreen() {
         <Text style={styles.greeting} numberOfLines={1}>
           Hello, {user?.displayName || user?.email || "there"}!
         </Text>
-        <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#333" />
-        </TouchableOpacity>
       </View>
 
       {page === "dueSoon" ? (

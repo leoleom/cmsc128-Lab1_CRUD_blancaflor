@@ -1,4 +1,5 @@
-import {createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile} from "firebase/auth";
+import {createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, 
+updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword,} from "firebase/auth";
 import { auth } from "../firebaseConfig";
 
 export async function registerUser({ email, password, displayName }) {
@@ -23,4 +24,15 @@ export async function logoutUser() {
 
 export function subscribeToAuthChanges(callback) {
   return onAuthStateChanged(auth, callback);
+}
+
+export async function changeUserPassword({ currentPassword, newPassword }) {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("Not logged in.");
+  }
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }
