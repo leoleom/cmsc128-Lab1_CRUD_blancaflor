@@ -6,7 +6,7 @@ A cross-platform task management app built for CMSC 128. Users create an account
 
 - **Frontend/UI library:** React Native (React) with Expo SDK 57
 - **Navigation:** Expo Router
-- **Backend/database:** Firebase client SDK and Cloud Firestore; there is no separate application server
+- **Backend/database:** Firebase client SDK and Cloud Firestore
 - **Authentication:** Firebase Authentication with email and password
 - **Native session persistence:** Firebase Auth persistence backed by AsyncStorage
 - **Programming language:** JavaScript
