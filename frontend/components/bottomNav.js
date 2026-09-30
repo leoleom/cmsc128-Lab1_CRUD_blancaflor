@@ -55,7 +55,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginTop: 0,
     },
-
     highlightCircle: {
         position: "absolute",   // sits behind the icon
         opacity: 0.7,
