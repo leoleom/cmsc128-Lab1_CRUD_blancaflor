@@ -20,6 +20,7 @@ export async function registerUser({ email, password, displayName }) {
 
 export async function loginUser({ email, password }) {
   const credential = await signInWithEmailAndPassword(auth, email, password);
+  await syncUserRecord(credential.user).catch(() => {});
   return credential.user;
 }
 

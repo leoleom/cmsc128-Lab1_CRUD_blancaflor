@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, arrayUnion, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, arrayUnion, arrayRemove, Timestamp } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 
 // returns the logged-in user's id
@@ -63,6 +63,7 @@ export async function getTeamMembers(memberIds) {
         members.push({
             id: memberIds[i],
             displayName: data.displayName || data.email || "Unknown user",
+            email: data.email || "",
         });
     }
     return members;
@@ -101,4 +102,13 @@ export async function addMemberByEmail(teamId, email) {
     // add them to the member list (arrayUnion never creates duplicates)
     await updateDoc(teamRef, { memberIds: arrayUnion(newMemberId) });
     return newMemberId;
+}
+
+export async function removeMember(teamId, memberId) {
+    const uid = getCurrentUid();
+    
+    if (!uid) throw makeError("team/not-logged-in", "You must be logged in.");
+    if (memberId === uid) throw makeError("team/cannot-remove-owner", "The owner can't be removed.");
+    
+    await updateDoc(doc(db, "teams", teamId), { memberIds: arrayRemove(memberId) });
 }

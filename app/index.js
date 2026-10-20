@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
 import { useAuth } from "../frontend/context/AuthContext";
-import { useRouter } from "expo-router";
+import { useList } from "../frontend/context/ListContext";
 
 const UNDO_DURATION = 5000;
 
@@ -18,6 +18,7 @@ function normalizeTags(tags) {
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { activeTeamId, setActiveTeamId, teams, refreshTeams } = useList();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
@@ -35,19 +36,19 @@ export default function HomeScreen() {
   const reloadTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const tasks = await getAllTasks();
-      setTasks(tasks);
+      setTasks(await getAllTasks(activeTeamId));
     } catch (error) {
       console.error("Failed to load tasks:", error);
       setTasks([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTeamId]);
 
   useFocusEffect(useCallback(() => {
+    refreshTeams(); // picks up lists you were just added to
     reloadTasks();
-  }, [reloadTasks, createdTaskId]));
+  }, [reloadTasks, createdTaskId, refreshTeams]));
 
   useEffect(() => {
     if (!pendingDeleteId || handledDeleteIdRef.current === pendingDeleteId) return;
@@ -142,6 +143,7 @@ export default function HomeScreen() {
     task.id !== pendingDeletion?.id &&
     (page === "dueSoon" ? !task.isDone : task.isDone)
   );
+
   const clearFilters = () => {
     setSelectedTags([]);
     setSelectedPriority("");
@@ -191,63 +193,53 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {page === "dueSoon" ? (
-        <>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>DUE SOON:</Text>
+      {/* switcher: personal, then each team you belong to */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.switcher}
+        contentContainerStyle={styles.switcherContent}
+      >
+        {[{ id: null, name: "Personal" }, ...teams].map((list) => (
+          <TouchableOpacity
+            key={list.id ?? "personal"}
+            style={[styles.chip, activeTeamId === list.id && styles.selectedChip]}
+            onPress={() => setActiveTeamId(list.id)}
+          >
+            <Text style={activeTeamId === list.id ? styles.selectedChipText : styles.chipText}>
+              {list.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setShowFilters(true)}
-              >
-                <Ionicons name="options-outline" size={20} color="#333" />
-              </TouchableOpacity>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>
+          {page === "dueSoon" ? "DUE SOON:" : "FINISHED TASKS:"}
+        </Text>
 
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
-              >
-                <Ionicons
-                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
-                  size={20}
-                  color="#333"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name="options-outline" size={20} color="#333" />
+          </TouchableOpacity>
 
-          {renderTaskList()}
-        </>
-      ) : (
-        <>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>FINISHED TASKS:</Text>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
+          >
+            <Ionicons
+              name={page === "dueSoon" ? "archive-outline" : "time-outline"}
+              size={20}
+              color="#333"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setShowFilters(true)}
-              >
-                <Ionicons name="options-outline" size={20} color="#333" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
-              >
-                <Ionicons
-                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
-                  size={20}
-                  color="#333"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {renderTaskList()}
-        </>
-      )}
+      {renderTaskList()}
 
       {pendingDeletion && (
         <View style={styles.snackbar}>
@@ -340,10 +332,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingTop: 60,
   },
-  topBar: {
-    alignItems: "flex-end",
-    paddingHorizontal: 20,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -357,6 +345,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "bold",
     color: "#000000",
+  },
+  switcher: {
+    flexGrow: 0,
+    marginBottom: 15,
+  },
+  switcherContent: {
+    paddingHorizontal: 20,
+    gap: 8,
   },
   sectionHeaderRow: {
     flexDirection: "row",

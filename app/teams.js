@@ -1,9 +1,10 @@
 import { useCallback, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../frontend/context/AuthContext";
-import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail } from "../backend/services/teamService";
+import { useList } from "../frontend/context/ListContext";
+import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail, removeMember } from "../backend/services/teamService";
 
 function showAlert(title, message) {
     // Alert.alert does nothing on web, so use the browser alert there
@@ -16,6 +17,8 @@ function showAlert(title, message) {
 
 export default function Teams() {
     const { user } = useAuth();
+    const router = useRouter();
+    const { setActiveTeamId, refreshTeams } = useList();
 
     const [teams, setTeams] = useState([]);
     const [membersByTeam, setMembersByTeam] = useState({});
@@ -27,6 +30,13 @@ export default function Teams() {
     const [emailInputs, setEmailInputs] = useState({});
     const [addingTeamId, setAddingTeamId] = useState(null);
 
+    // only one team is expanded at a time
+    const [expandedTeamId, setExpandedTeamId] = useState(null);
+
+    // which team has its add-member field / remove buttons showing
+    const [addOpenTeamId, setAddOpenTeamId] = useState(null);
+    const [removeModeTeamId, setRemoveModeTeamId] = useState(null);
+
     const loadTeams = useCallback(async () => {
         try {
             // Get my teams, then get the members of each one
@@ -37,18 +47,36 @@ export default function Teams() {
             }
             setTeams(fetched);
             setMembersByTeam(members);
+            await refreshTeams(); // keeps the Home chips in sync
         } catch (error) {
             console.error("Failed to load teams:", error);
             setTeams([]);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [refreshTeams]);
 
     // Reload every time this screen is opened
     useFocusEffect(useCallback(() => {
         loadTeams();
     }, [loadTeams]));
+
+    const toggleExpanded = (teamId) => {
+        // collapsing or switching teams also hides the add field and remove buttons
+        setAddOpenTeamId(null);
+        setRemoveModeTeamId(null);
+        setExpandedTeamId((current) => (current === teamId ? null : teamId));
+    };
+
+    const toggleAddField = (teamId) => {
+        setRemoveModeTeamId(null);
+        setAddOpenTeamId((current) => (current === teamId ? null : teamId));
+    };
+
+    const toggleRemoveMode = (teamId) => {
+        setAddOpenTeamId(null);
+        setRemoveModeTeamId((current) => (current === teamId ? null : teamId));
+    };
 
     const handleCreateTeam = async () => {
         // A team needs a name
@@ -81,6 +109,7 @@ export default function Teams() {
         try {
             await addMemberByEmail(team.id, email);
             setEmailInputs((current) => ({ ...current, [team.id]: "" }));
+            setAddOpenTeamId(null);
             await loadTeams();
             showAlert("Member added", "They can now see this team.");
         } catch (error) {
@@ -100,43 +129,131 @@ export default function Teams() {
         }
     };
 
+    const handleRemoveMember = async (team, memberId) => {
+        try {
+            await removeMember(team.id, memberId);
+            await loadTeams();
+        } catch (error) {
+            console.error("removeMember failed:", error);
+            showAlert("Error", "Couldn't remove that person. Please try again.");
+        }
+    };
+
+    const openTeamList = (teamId) => {
+        setActiveTeamId(teamId);
+        router.replace("/");
+    };
+
     const renderTeam = (team) => {
         const isOwner = team.ownerId === user?.uid;
+        const isExpanded = expandedTeamId === team.id;
+        const isAddOpen = addOpenTeamId === team.id;
+        const isRemoveMode = removeModeTeamId === team.id;
         const members = membersByTeam[team.id] || [];
+
+        let toggleLabel = isOwner ? "Edit" : "Members";
+        if (isExpanded) {
+            toggleLabel = isOwner ? "Done" : "Hide";
+        }
 
         return (
             <View key={team.id} style={styles.teamCard}>
                 <View style={styles.teamHeaderRow}>
-                    <Text style={styles.teamName}>{team.name}</Text>
-                    <Text style={styles.roleBadge}>{isOwner ? "Owner" : "Member"}</Text>
+                    <View style={styles.teamTitleBlock}>
+                        <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
+                        <Text style={styles.roleBadge}>{isOwner ? "Owner" : "Member"}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.toggleButton}
+                        onPress={() => toggleExpanded(team.id)}
+                    >
+                        <Text style={styles.toggleButtonText}>{toggleLabel}</Text>
+                    </TouchableOpacity>
                 </View>
 
-                <Text style={styles.membersLabel}>Members</Text>
-                {members.map((member) => (
-                    <Text key={member.id} style={styles.memberName}>
-                        {member.displayName}{member.id === team.ownerId ? " (owner)" : ""}
-                    </Text>
-                ))}
+                {isExpanded && (
+                    <View style={styles.expandedSection}>
+                        <Text style={styles.membersLabel}>Members</Text>
+                        {members.map((member) => (
+                            <View key={member.id} style={styles.memberRow}>
+                                <Text style={styles.memberName}>
+                                    {member.displayName}{member.id === team.ownerId ? " (owner)" : ""}
+                                </Text>
+                                {member.email ? (
+                                    <Text style={styles.memberEmail}>{member.email}</Text>
+                                ) : null}
 
-                {isOwner && (
-                    <View style={styles.addMemberRow}>
-                        <TextInput
-                            style={[styles.input, styles.addMemberInput]}
-                            placeholder="Add member by email"
-                            placeholderTextColor="#999"
-                            value={emailInputs[team.id] || ""}
-                            onChangeText={(text) => setEmailInputs((current) => ({ ...current, [team.id]: text }))}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                        />
-                        <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={() => handleAddMember(team)}
-                            disabled={addingTeamId === team.id}
-                        >
-                            <Text style={styles.addButtonText}>
-                                {addingTeamId === team.id ? "..." : "Add"}
-                            </Text>
+                                {isRemoveMode && member.id !== team.ownerId && (
+                                    <TouchableOpacity
+                                        style={styles.removeButton}
+                                        onPress={() => handleRemoveMember(team, member.id)}
+                                    >
+                                        <Text style={styles.removeText}>Remove</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        ))}
+
+                        {isOwner && !isAddOpen && (
+                            <View style={styles.actionRow}>
+                                {!isRemoveMode && (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.addActionButton]}
+                                        onPress={() => toggleAddField(team.id)}
+                                    >
+                                        <Text style={styles.actionButtonText}>Add member</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        isRemoveMode ? styles.doneActionButton : styles.removeActionButton,
+                                    ]}
+                                    onPress={() => toggleRemoveMode(team.id)}
+                                >
+                                    <Text style={isRemoveMode ? styles.doneActionButtonText : styles.actionButtonText}>
+                                        {isRemoveMode ? "Done" : "Remove members"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {isOwner && isAddOpen && (
+                            <View style={styles.addMemberRow}>
+                                <TextInput
+                                    style={[styles.input, styles.addMemberInput]}
+                                    placeholder="Member's email"
+                                    placeholderTextColor="#999"
+                                    value={emailInputs[team.id] || ""}
+                                    onChangeText={(text) => setEmailInputs((current) => ({ ...current, [team.id]: text }))}
+                                    autoCapitalize="none"
+                                    keyboardType="email-address"
+                                />
+                                <TouchableOpacity
+                                    style={styles.addButton}
+                                    onPress={() => handleAddMember(team)}
+                                    disabled={addingTeamId === team.id}
+                                >
+                                    <Text style={styles.addButtonText}>
+                                        {addingTeamId === team.id ? "..." : "Add"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {isOwner && isAddOpen && (
+                            <TouchableOpacity
+                                style={styles.cancelAddButton}
+                                onPress={() => toggleAddField(team.id)}
+                            >
+                                <Text style={styles.cancelAddButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity style={styles.openButton} onPress={() => openTeamList(team.id)}>
+                            <Text style={styles.addButtonText}>Open this team's list</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -235,10 +352,12 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 10,
+        gap: 12,
+    },
+    teamTitleBlock: {
+        flex: 1,
     },
     teamName: {
-        flex: 1,
         fontSize: 18,
         fontWeight: "bold",
         color: "#000",
@@ -247,16 +366,89 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "600",
         color: "#e67e22",
+        marginTop: 2,
+    },
+    toggleButton: {
+        backgroundColor: "#e67e22",
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    toggleButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    expandedSection: {
+        borderTopWidth: 1,
+        borderTopColor: "#ddd",
+        marginTop: 14,
+        paddingTop: 12,
     },
     membersLabel: {
         fontSize: 13,
         color: "#888",
-        marginBottom: 4,
+        marginBottom: 8,
+    },
+    memberRow: {
+        paddingBottom: 10,
+        marginBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "#e2e2e2",
     },
     memberName: {
         fontSize: 15,
+        fontWeight: "600",
         color: "#222",
-        marginBottom: 2,
+    },
+    memberEmail: {
+        fontSize: 13,
+        color: "#666",
+        marginTop: 2,
+    },
+    removeButton: {
+        alignSelf: "flex-start",
+        borderWidth: 1,
+        borderColor: "#c0392b",
+        borderRadius: 8,
+        paddingVertical: 5,
+        paddingHorizontal: 12,
+        marginTop: 8,
+    },
+    removeText: {
+        color: "#c0392b",
+        fontWeight: "600",
+        fontSize: 13,
+    },
+    actionRow: {
+        flexDirection: "row",
+        gap: 10,
+        marginTop: 4,
+    },
+    actionButton: {
+        flex: 1,
+        borderRadius: 10,
+        paddingVertical: 11,
+        alignItems: "center",
+    },
+    addActionButton: {
+        backgroundColor: "#4caf50",
+    },
+    removeActionButton: {
+        backgroundColor: "#d9534f",
+    },
+    actionButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    doneActionButton: {
+        backgroundColor: "#333",
+    },
+    doneActionButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
     },
     addMemberRow: {
         flexDirection: "row",
@@ -267,7 +459,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     addButton: {
-        backgroundColor: "#e67e22",
+        backgroundColor: "#4caf50",
         borderRadius: 10,
         paddingHorizontal: 18,
         justifyContent: "center",
@@ -276,6 +468,25 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: "600",
         fontSize: 15,
+    },
+     cancelAddButton: {
+        backgroundColor: "#333",
+        borderRadius: 10,
+        paddingVertical: 11,
+        alignItems: "center",
+        marginTop: 10,
+    },
+    cancelAddButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    openButton: {
+        backgroundColor: "#e67e22",
+        borderRadius: 10,
+        paddingVertical: 12,
+        alignItems: "center",
+        marginTop: 14,
     },
     emptyText: {
         fontSize: 14,

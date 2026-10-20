@@ -6,21 +6,33 @@ function getCurrentUid() {
     return auth.currentUser ? auth.currentUser.uid : null;
 }
 
+// personal (teamId null) or a team's list
+function scopeFilters(uid, teamId) {
+    return teamId
+        ? [where("teamId", "==", teamId)]
+        : [where("userId", "==", uid), where("teamId", "==", null)];
+}
+
 // getter
 export async function getTaskById(taskId) {
     try {
         const uid = getCurrentUid();
         if (!uid) return null;
 
-        const taskRef = doc(db, "tasks", taskId);
-        const snapshot = await getDoc(taskRef);
+        const snapshot = await getDoc(doc(db, "tasks", taskId));
         if (!snapshot.exists()) return null;
-
         const data = snapshot.data();
-        if (data.userId !== uid) return null;
 
+        if (data.teamId) {
+            const team = await getDoc(doc(db, "teams", data.teamId));
+            if (!team.exists() || !team.data().memberIds?.includes(uid)) return null;
+        } else if (data.userId !== uid) {
+            return null;
+        }
         return { id: snapshot.id, ...data };
     } catch (error) {
+        // rules reject non-members: fail safely instead of crashing
+        if (error.code === "permission-denied") return null;
         console.error("getTaskById failed:", error);
         throw error;
     }
@@ -56,8 +68,8 @@ export async function deleteTask(taskId) {
     }
 }
 
-// create
-export async function createTask({ title, details, dueDate, priority, tags }) {
+// create (teamId is optional: null means a personal task)
+export async function createTask({ title, details, dueDate, priority, tags, teamId = null }) {
     try {
         const uid = getCurrentUid();
         if (!uid) throw new Error("You must be logged in to create a task.");
@@ -66,6 +78,7 @@ export async function createTask({ title, details, dueDate, priority, tags }) {
 
         const newTask = {
             userId: uid,
+            teamId: teamId ?? null,
             title: title.trim(),
             details: details.trim(),
             dueDate: Timestamp.fromDate(dueDate),
@@ -95,7 +108,7 @@ export async function toggleTaskComplete(taskId, currentValue) {
     }
 }
 
-export async function getTasksByDate(dateString) {
+export async function getTasksByDate(dateString, teamId = null) {
     try {
         const uid = getCurrentUid();
         if (!uid) return [];
@@ -104,58 +117,48 @@ export async function getTasksByDate(dateString) {
         const startOfDay = new Date(year, month - 1, day);
         const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
 
-        const tasksRef = collection(db, "tasks");
         const q = query(
-            tasksRef,
-            where("userId", "==", uid),
+            collection(db, "tasks"),
+            ...scopeFilters(uid, teamId),
             where("dueDate", ">=", Timestamp.fromDate(startOfDay)),
             where("dueDate", "<=", Timestamp.fromDate(endOfDay))
         );
         const snapshot = await getDocs(q);
 
-        return snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
+        return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("getTasksByDate failed:", error);
         throw error;
     }
 }
 
-export async function getAllTasks() {
+export async function getAllTasks(teamId = null) {
     try {
         const uid = getCurrentUid();
         if (!uid) return [];
 
-        const tasksRef = collection(db, "tasks");
-        const q = query(tasksRef, where("userId", "==", uid));
+        const q = query(collection(db, "tasks"), ...scopeFilters(uid, teamId));
         const snapshot = await getDocs(q);
 
-        return snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
+        return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("getAllTasks failed:", error);
         throw error;
     }
 }
 
-export async function getAllTaskDates() {
+export async function getAllTaskDates(teamId = null) {
     try {
         const uid = getCurrentUid();
         if (!uid) return [];
 
-        const tasksRef = collection(db, "tasks");
-        const q = query(tasksRef, where("userId", "==", uid));
+        const q = query(collection(db, "tasks"), ...scopeFilters(uid, teamId));
         const snapshot = await getDocs(q);
 
         return snapshot.docs
-            .map((doc) => {
-                const dueDate = doc.data().dueDate;
+            .map((d) => {
+                const dueDate = d.data().dueDate;
                 if (!dueDate) return null;
-                // conversion
                 return dueDate.toDate().toISOString().split("T")[0];
             })
             .filter(Boolean);
