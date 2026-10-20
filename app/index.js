@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedPriority, setSelectedPriority] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showListMenu, setShowListMenu] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState(null);
   const deletionTimerRef = useRef(null);
   const handledDeleteIdRef = useRef(null);
@@ -45,10 +46,25 @@ export default function HomeScreen() {
     }
   }, [activeTeamId]);
 
-  useFocusEffect(useCallback(() => {
-    refreshTeams(); // picks up lists you were just added to
-    reloadTasks();
-  }, [reloadTasks, createdTaskId, refreshTeams]));
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const loadData = async () => {
+        await refreshTeams();
+
+        if (!cancelled) {
+          await reloadTasks();
+        }
+      };
+
+      loadData();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [refreshTeams, reloadTasks, createdTaskId])
+  );
 
   useEffect(() => {
     if (!pendingDeleteId || handledDeleteIdRef.current === pendingDeleteId) return;
@@ -157,6 +173,14 @@ export default function HomeScreen() {
     );
   };
 
+  const activeListName = teams.find((team) => team.id === activeTeamId)?.name || "Personal";
+
+  const selectList = (teamId) => {
+    setActiveTeamId(teamId);
+    clearFilters(); // tags from the previous list would hide tasks in the new one
+    setShowListMenu(false);
+  };
+
   const renderTaskList = () => (
     <View style={styles.taskListContainer}>
       {loading ? (
@@ -193,25 +217,14 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* switcher: personal, then each team you belong to */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.switcher}
-        contentContainerStyle={styles.switcherContent}
+      <TouchableOpacity
+        style={styles.listSelector}
+        onPress={() => setShowListMenu(true)}
       >
-        {[{ id: null, name: "Personal" }, ...teams].map((list) => (
-          <TouchableOpacity
-            key={list.id ?? "personal"}
-            style={[styles.chip, activeTeamId === list.id && styles.selectedChip]}
-            onPress={() => setActiveTeamId(list.id)}
-          >
-            <Text style={activeTeamId === list.id ? styles.selectedChipText : styles.chipText}>
-              {list.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+        <Ionicons name={activeTeamId ? "people" : "person"} size={18} color="#333" />
+        <Text style={styles.listSelectorText} numberOfLines={1}>{activeListName}</Text>
+        <Ionicons name="chevron-down" size={18} color="#333" />
+      </TouchableOpacity>
 
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>
@@ -322,6 +335,55 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showListMenu} transparent animationType="fade" onRequestClose={() => setShowListMenu(false)}>
+        <TouchableOpacity
+          style={styles.listMenuBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowListMenu(false)}
+        >
+          <View style={styles.listMenuPanel}>
+            <Text style={styles.listMenuTitle}>Switch list</Text>
+
+            <ScrollView>
+              {[{ id: null, name: "Personal" }, ...teams].map((list) => {
+                const isActive = activeTeamId === list.id;
+                return (
+                  <TouchableOpacity
+                    key={list.id ?? "personal"}
+                    style={[styles.listMenuItem, isActive && styles.listMenuItemActive]}
+                    onPress={() => selectList(list.id)}
+                  >
+                    <Ionicons
+                      name={list.id ? "people-outline" : "person-outline"}
+                      size={20}
+                      color={isActive ? "#fff" : "#333"}
+                    />
+                    <Text
+                      style={isActive ? styles.listMenuItemTextActive : styles.listMenuItemText}
+                      numberOfLines={1}
+                    >
+                      {list.name}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={20} color="#fff" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.manageTeamsButton}
+              onPress={() => {
+                setShowListMenu(false);
+                router.push("/teams");
+              }}
+            >
+              <Text style={styles.manageTeamsText}>Manage teams</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -346,13 +408,76 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000000",
   },
-  switcher: {
-    flexGrow: 0,
-    marginBottom: 15,
-  },
-  switcherContent: {
-    paddingHorizontal: 20,
+  listSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     gap: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    maxWidth: "80%",
+  },
+  listSelectorText: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+  },
+  listMenuBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.18)",
+    padding: 20,
+  },
+  listMenuPanel: {
+    width: "100%",
+    maxHeight: "70%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+  },
+  listMenuTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 12,
+  },
+  listMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 6,
+    backgroundColor: "#f2f2f2",
+  },
+  listMenuItemActive: {
+    backgroundColor: "#e67e22",
+  },
+  listMenuItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#333",
+  },
+  listMenuItemTextActive: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  manageTeamsButton: {
+    alignItems: "center",
+    paddingTop: 14,
+  },
+  manageTeamsText: {
+    color: "#e67e22",
+    fontWeight: "bold",
   },
   sectionHeaderRow: {
     flexDirection: "row",

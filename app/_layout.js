@@ -4,6 +4,7 @@ import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import BottomNav from "../frontend/components/bottomNav";
 import { AuthProvider, useAuth } from "../frontend/context/AuthContext";
+import { ListProvider } from "../frontend/context/ListContext";
 
 const PUBLIC_ROUTES = ["/login", "/signUp", "/forgotPassword"];
 
@@ -50,7 +51,9 @@ export default function Layout() {
     return (
         <SafeAreaProvider>
             <AuthProvider>
-                <AuthGate />
+                <ListProvider>
+                    <AuthGate />
+                </ListProvider>
             </AuthProvider>
         </SafeAreaProvider>
     );
@@ -58,10 +61,10 @@ export default function Layout() {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1
+        flex: 1,
     },
     centered: {
         justifyContent: "center",
-        alignItems: "center"
+        alignItems: "center",
     },
 });

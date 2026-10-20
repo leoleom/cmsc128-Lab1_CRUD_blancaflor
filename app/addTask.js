@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { createTask } from "../backend/services/taskService";
+import { useList } from "../frontend/context/ListContext";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
@@ -14,6 +15,7 @@ export default function AddTask() {
     const priorityBoxRef = useRef(null);
     const dateBoxRef = useRef(null);
 
+    const { activeTeamId } = useList();
     const [title, setTitle] = useState("");
     const [dueDate, setDueDate] = useState(new Date());
     const [tags, setTags] = useState("");
@@ -90,7 +92,7 @@ export default function AddTask() {
 
         setIsSaving(true);
         try {
-            const createdTask = await createTask({ title, details, dueDate, priority, tags });
+            const createdTask = await createTask({ title, details, dueDate, priority, tags, teamId: activeTeamId, });
             Alert.alert("Task saved!");
             router.replace({ pathname: "/", params: { createdTaskId: createdTask.id } });
         } catch (error) {

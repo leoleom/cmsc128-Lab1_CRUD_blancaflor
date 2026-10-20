@@ -15,6 +15,20 @@ function showAlert(title, message) {
     }
 }
 
+function confirmAction(title, message, confirmText, onConfirm) {
+    if (Platform.OS === "web") {
+        if (window.confirm(`${title}\n\n${message}`)) {
+            onConfirm();
+        }
+        return;
+    }
+
+    Alert.alert(title, message, [
+        { text: "Cancel", style: "cancel" },
+        { text: confirmText, style: "destructive", onPress: onConfirm },
+    ]);
+}
+
 export default function Teams() {
     const { user } = useAuth();
     const router = useRouter();
@@ -129,14 +143,21 @@ export default function Teams() {
         }
     };
 
-    const handleRemoveMember = async (team, memberId) => {
-        try {
-            await removeMember(team.id, memberId);
-            await loadTeams();
-        } catch (error) {
-            console.error("removeMember failed:", error);
-            showAlert("Error", "Couldn't remove that person. Please try again.");
-        }
+    const handleRemoveMember = (team, member) => {
+        confirmAction(
+            "Remove member",
+            `Remove ${member.displayName} (${member.email || "no email"}) from "${team.name}"? They will lose access to this team's tasks.`,
+            "Remove",
+            async () => {
+                try {
+                    await removeMember(team.id, member.id);
+                    await loadTeams();
+                } catch (error) {
+                    console.error("removeMember failed:", error);
+                    showAlert("Error", "Couldn't remove that person. Please try again.");
+                }
+            }
+        );
     };
 
     const openTeamList = (teamId) => {
@@ -187,7 +208,7 @@ export default function Teams() {
                                 {isRemoveMode && member.id !== team.ownerId && (
                                     <TouchableOpacity
                                         style={styles.removeButton}
-                                        onPress={() => handleRemoveMember(team, member.id)}
+                                        onPress={() => handleRemoveMember(team, member)}
                                     >
                                         <Text style={styles.removeText}>Remove</Text>
                                     </TouchableOpacity>
@@ -214,7 +235,7 @@ export default function Teams() {
                                     onPress={() => toggleRemoveMode(team.id)}
                                 >
                                     <Text style={isRemoveMode ? styles.doneActionButtonText : styles.actionButtonText}>
-                                        {isRemoveMode ? "Done" : "Remove members"}
+                                        {isRemoveMode ? "Cancel" : "Remove members"}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -469,7 +490,7 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         fontSize: 15,
     },
-     cancelAddButton: {
+    cancelAddButton: {
         backgroundColor: "#333",
         borderRadius: 10,
         paddingVertical: 11,
