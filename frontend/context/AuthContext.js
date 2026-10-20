@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Alert, AppState, Platform } from "react-native";
 import { logoutUser, subscribeToAuthChanges, verifyPendingEmailChange } from "../../backend/services/authService";
+import { syncUserRecord } from "../../backend/services/userService"; // NEW
 
 const AuthContext = createContext({ user: null, isCheckingAuth: true });
 
@@ -101,6 +102,19 @@ export function AuthProvider({ children }) {
             stopEmailChangeChecks();
         };
     }, []);
+
+    // keep the users record up to date for whoever is logged in
+    useEffect(() => {
+        // nothing to save while logged out
+        if (!user) {
+            return;
+        }
+
+        // save the email and name each time someone logs in or the app reopens
+        syncUserRecord(user).catch((error) => {
+            console.warn("syncUserRecord failed:", error);
+        });
+    }, [user]);
 
     return (
         <AuthContext.Provider value={{ user, isCheckingAuth }}>

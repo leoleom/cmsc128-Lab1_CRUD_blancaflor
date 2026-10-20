@@ -3,13 +3,18 @@ updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, 
 sendPasswordResetEmail, reload } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth } from "../firebaseConfig";
+import { syncUserRecord } from "./userService";
 
 const PENDING_EMAIL_CHANGE_KEY = "pendingEmailChange";
 const EMAIL_CHANGE_RELOGIN_PROMPTED_KEY = "emailChangeReloginPrompted";
 
 export async function registerUser({ email, password, displayName }) {
+  // create the account
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName });
+
+  // copy email and name into the users collection; failure will not break sign-up
+  await syncUserRecord(credential.user).catch(() => {});
   return credential.user;
 }
 
@@ -43,12 +48,16 @@ export async function changeUserPassword({ currentPassword, newPassword }) {
 }
 
 export async function updateDisplayName(displayName) {
+  // only a logged-in user can change their name
   const user = auth.currentUser;
   if (!user) {
     throw new Error("Not logged in.");
   }
 
   await updateProfile(user, { displayName });
+
+  // keep the users collection in step with the new name
+  await syncUserRecord(user).catch(() => {});
 }
 
 export async function requestEmailChange({ currentPassword, newEmail }) {
@@ -104,5 +113,3 @@ export async function verifyPendingEmailChange() {
 export async function requestPasswordReset(email) {
   await sendPasswordResetEmail(auth, email);
 }
-
-
