@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { logoutUser, changeUserPassword, updateDisplayName, requestEmailChange } from "../backend/services/authService";
 import { useAuth } from "../frontend/context/AuthContext";
+import { useRouter } from "expo-router";
 
 function showAlert(title, message) {
     if (Platform.OS === "web") {
@@ -25,6 +26,7 @@ function maskEmail(email) {
 
 export default function Profile() {
     const { user } = useAuth();
+    const router = useRouter();
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [currentPassword, setCurrentPassword] = useState("");
@@ -231,6 +233,14 @@ export default function Profile() {
             >
                 <Ionicons name="key-outline" size={18} color="#333" />
                 <Text style={styles.actionButtonText}>Change Password</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push("/teams")}
+            >
+                <Ionicons name="people-outline" size={18} color="#333" />
+                <Text style={styles.actionButtonText}>My Teams</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
