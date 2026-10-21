@@ -178,6 +178,7 @@ export default function TaskCard({ task, onToggleComplete, onArchive }) {
     );
 }
 
+
 const styles = StyleSheet.create({
     card: {
         flexDirection: "row",
