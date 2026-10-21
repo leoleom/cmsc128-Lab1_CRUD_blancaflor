@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
-import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail, removeMember } from "../backend/services/teamService";
+import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
 
 function showAlert(title, message) {
     // Alert.alert does nothing on web, so use the browser alert there
@@ -32,7 +33,7 @@ function confirmAction(title, message, confirmText, onConfirm) {
 export default function Teams() {
     const { user } = useAuth();
     const router = useRouter();
-    const { setActiveTeamId, refreshTeams } = useList();
+    const { activeTeamId, setActiveTeamId, refreshTeams } = useList();
 
     const [teams, setTeams] = useState([]);
     const [membersByTeam, setMembersByTeam] = useState({});
@@ -40,6 +41,9 @@ export default function Teams() {
 
     const [newTeamName, setNewTeamName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+
+    // the name field only shows after tapping the Create team button
+    const [showCreateField, setShowCreateField] = useState(false);
 
     const [emailInputs, setEmailInputs] = useState({});
     const [addingTeamId, setAddingTeamId] = useState(null);
@@ -92,8 +96,17 @@ export default function Teams() {
         setRemoveModeTeamId((current) => (current === teamId ? null : teamId));
     };
 
+    const closeCreateField = () => {
+        // clear what was typed and hide the name field again
+        setNewTeamName("");
+        setShowCreateField(false);
+    };
+
     const handleCreateTeam = async () => {
-        // A team needs a name
+
+        const teamName = newTeamName.trim();
+
+        // enforce team name
         if (!newTeamName.trim()) {
             showAlert("Missing name", "Please enter a team name.");
             return;
@@ -101,18 +114,23 @@ export default function Teams() {
 
         setIsCreating(true);
         try {
+            // save the team, then hide the field and refresh the list
             await createTeam(newTeamName);
-            setNewTeamName("");
+            closeCreateField();
             await loadTeams();
+
+            showAlert("Team created", `"${teamName}" is ready. Tap Edit on it to add members.`);
+
         } catch (error) {
-            showAlert("Error", "Couldn't create the team. Please try again.");
+            console.error("createTeam failed:", error);
+            showAlert("Couldn't create team", "Something went wrong, so the team was not created. Please try again.");
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleAddMember = async (team) => {
-        // The email must not be empty
+        // email must not be empty
         const email = (emailInputs[team.id] || "").trim();
         if (!email) {
             showAlert("Missing email", "Please enter the email of the person to add.");
@@ -127,7 +145,7 @@ export default function Teams() {
             await loadTeams();
             showAlert("Member added", "They can now see this team.");
         } catch (error) {
-            // Show a clear message for each known problem
+            // error messages
             if (error.code === "team/user-not-found") {
                 showAlert("Not found", "No account has that email. They need to sign up and log in at least once.");
             } else if (error.code === "team/already-member") {
@@ -155,6 +173,33 @@ export default function Teams() {
                 } catch (error) {
                     console.error("removeMember failed:", error);
                     showAlert("Error", "Couldn't remove that person. Please try again.");
+                }
+            }
+        );
+    };
+
+    const handleDeleteTeam = (team) => {
+        // confirm with user
+        confirmAction(
+            "Delete team",
+            `Delete "${team.name}" and all of its tasks? This can't be undone.`,
+            "Delete",
+            async () => {
+                try {
+                    await deleteTeam(team.id);
+
+                    // switch it back to Personal
+                    if (activeTeamId === team.id) {
+                        setActiveTeamId(null);
+                    }
+
+                    // close the card and refresh the list
+                    setExpandedTeamId(null);
+                    await loadTeams();
+                    showAlert("Team deleted", `"${team.name}" and its tasks were deleted.`);
+                } catch (error) {
+                    console.error("deleteTeam failed:", error);
+                    showAlert("Couldn't delete team", "The team could not be deleted. Please try again.");
                 }
             }
         );
@@ -218,15 +263,6 @@ export default function Teams() {
 
                         {isOwner && !isAddOpen && (
                             <View style={styles.actionRow}>
-                                {!isRemoveMode && (
-                                    <TouchableOpacity
-                                        style={[styles.actionButton, styles.addActionButton]}
-                                        onPress={() => toggleAddField(team.id)}
-                                    >
-                                        <Text style={styles.actionButtonText}>Add member</Text>
-                                    </TouchableOpacity>
-                                )}
-
                                 <TouchableOpacity
                                     style={[
                                         styles.actionButton,
@@ -238,6 +274,15 @@ export default function Teams() {
                                         {isRemoveMode ? "Cancel" : "Remove members"}
                                     </Text>
                                 </TouchableOpacity>
+
+                                {!isRemoveMode && (
+                                    <TouchableOpacity
+                                        style={[styles.actionButton, styles.addActionButton]}
+                                        onPress={() => toggleAddField(team.id)}
+                                    >
+                                        <Text style={styles.actionButtonText}>Add member</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         )}
 
@@ -276,6 +321,15 @@ export default function Teams() {
                         <TouchableOpacity style={styles.openButton} onPress={() => openTeamList(team.id)}>
                             <Text style={styles.addButtonText}>Open this team's list</Text>
                         </TouchableOpacity>
+
+                        {isOwner && !isAddOpen && !isRemoveMode && (
+                            <View style={styles.dangerZone}>
+                                <TouchableOpacity style={styles.deleteTeamButton} onPress={() => handleDeleteTeam(team)}>
+                                    <Text style={styles.deleteTeamText}>Delete this team</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
                     </View>
                 )}
             </View>
@@ -285,26 +339,47 @@ export default function Teams() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.screenTitle}>TEAMS</Text>
-
-                <View style={styles.createRow}>
-                    <TextInput
-                        style={[styles.input, styles.createInput]}
-                        placeholder="New team name"
-                        placeholderTextColor="#999"
-                        value={newTeamName}
-                        onChangeText={setNewTeamName}
-                    />
-                    <TouchableOpacity
-                        style={styles.createButton}
-                        onPress={handleCreateTeam}
-                        disabled={isCreating}
-                    >
-                        <Text style={styles.createButtonText}>
-                            {isCreating ? "..." : "Create"}
-                        </Text>
+                <View style={styles.headerRow}>
+                    <Text style={styles.screenTitle}>TEAMS</Text>
+                    <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/profile")}>
+                        <Ionicons name="settings-outline" size={20} color="#333" />
                     </TouchableOpacity>
                 </View>
+
+                {!showCreateField ? (
+                    <TouchableOpacity
+                        style={styles.newTeamButton}
+                        onPress={() => setShowCreateField(true)}
+                    >
+                        <Text style={styles.createButtonText}>Create team</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.createSection}>
+                        <View style={styles.createRow}>
+                            <TextInput
+                                style={[styles.input, styles.createInput]}
+                                placeholder="New team name"
+                                placeholderTextColor="#999"
+                                value={newTeamName}
+                                onChangeText={setNewTeamName}
+                                autoFocus
+                            />
+                            <TouchableOpacity
+                                style={styles.createButton}
+                                onPress={handleCreateTeam}
+                                disabled={isCreating}
+                            >
+                                <Text style={styles.createButtonText}>
+                                    {isCreating ? "..." : "Create"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity style={styles.cancelAddButton} onPress={closeCreateField}>
+                            <Text style={styles.cancelAddButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {loading ? (
                     <Text style={styles.emptyText}>Loading...</Text>
@@ -327,16 +402,38 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingBottom: 140,
     },
+    headerRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 20,
+    },
     screenTitle: {
         fontSize: 22,
         fontWeight: "bold",
         color: "#000",
+    },
+    iconButton: {
+        width: 42,
+        height: 42,
+        borderRadius: 10,
+        backgroundColor: "#E5E5EA",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    newTeamButton: {
+        backgroundColor: "#4caf50",
+        borderRadius: 10,
+        paddingVertical: 13,
+        alignItems: "center",
+        marginBottom: 20,
+    },
+    createSection: {
         marginBottom: 20,
     },
     createRow: {
         flexDirection: "row",
         gap: 10,
-        marginBottom: 20,
     },
     input: {
         backgroundColor: "#eee",
@@ -440,6 +537,22 @@ const styles = StyleSheet.create({
         color: "#c0392b",
         fontWeight: "600",
         fontSize: 13,
+    },
+    dangerZone: {
+        borderTopWidth: 1,
+        borderTopColor: "#ddd",
+        marginTop: 28,
+        paddingTop: 6,
+        alignItems: "center",
+    },
+    deleteTeamButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    deleteTeamText: {
+        color: "#c0392b",
+        fontSize: 13,
+        fontWeight: "600",
     },
     actionRow: {
         flexDirection: "row",

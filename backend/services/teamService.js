@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, arrayUnion, arrayRemove, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, Timestamp } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 
 // returns the logged-in user's id
@@ -111,4 +111,39 @@ export async function removeMember(teamId, memberId) {
     if (memberId === uid) throw makeError("team/cannot-remove-owner", "The owner can't be removed.");
     
     await updateDoc(doc(db, "teams", teamId), { memberIds: arrayRemove(memberId) });
+}
+
+export async function deleteTeam(teamId) {
+    // only a logged-in user can delete a team
+    const uid = getCurrentUid();
+    if (!uid) {
+        throw makeError("team/not-logged-in", "You must be logged in.");
+    }
+
+    // load the team and make sure this user owns it
+    const teamRef = doc(db, "teams", teamId);
+    const teamSnapshot = await getDoc(teamRef);
+    if (!teamSnapshot.exists()) {
+        throw makeError("team/not-found", "This team no longer exists.");
+    }
+    if (teamSnapshot.data().ownerId !== uid) {
+        throw makeError("team/not-owner", "Only the team owner can delete the team.");
+    }
+
+    // find every task that belongs to this team
+    const tasksSnapshot = await getDocs(query(collection(db, "tasks"), where("teamId", "==", teamId)));
+
+    // delete the tasks in groups, because one batch can hold at most 500 changes
+    const BATCH_SIZE = 400;
+    for (let start = 0; start < tasksSnapshot.docs.length; start += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const end = Math.min(start + BATCH_SIZE, tasksSnapshot.docs.length);
+        for (let i = start; i < end; i++) {
+            batch.delete(tasksSnapshot.docs[i].ref);
+        }
+        await batch.commit();
+    }
+
+    // delete the team itself last
+    await deleteDoc(teamRef);
 }
