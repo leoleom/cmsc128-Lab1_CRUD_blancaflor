@@ -147,3 +147,16 @@ export async function deleteTeam(teamId) {
     // delete the team itself last
     await deleteDoc(teamRef);
 }
+
+export async function getTeamById(teamId) {
+    try {
+        // Load one team; return null if it is missing
+        const snapshot = await getDoc(doc(db, "teams", teamId));
+        if (!snapshot.exists()) return null;
+        return { id: snapshot.id, ...snapshot.data() };
+    } catch (error) {
+        // The rules refuse non-members, so treat that as "no team"
+        if (error.code === "permission-denied") return null;
+        throw error;
+    }
+}

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "../context/AuthContext";
+import { getUserDisplayName } from "../../backend/services/userService";
 
 const PRIORITY_COLORS = {
     urgent: "#C95656",
@@ -42,9 +44,33 @@ function normalizeTags(tags) {
 
 export default function TaskCard({ task, onToggleComplete, onArchive }) {
     const router = useRouter();
-    const { id, title, details, dueDate, createdAt, isDone, priority, tags } = task;
+    const { user } = useAuth();
+    const { id, userId, teamId, title, details, dueDate, createdAt, isDone, priority, tags } = task;
     const taskTags = normalizeTags(tags);
     const [showDetails, setShowDetails] = useState(false);
+    const [ownerName, setOwnerName] = useState("");
+
+    useEffect(() => {
+        // Only look up the owner for team tasks, and only when the window is open
+        if (!showDetails || !teamId || !userId) return;
+
+        // Your own tasks say "You", so no lookup is needed
+        if (userId === user?.uid) {
+            setOwnerName("You");
+            return;
+        }
+
+        // Otherwise read the owner's name from the users collection
+        let cancelled = false;
+        getUserDisplayName(userId).then((name) => {
+            if (!cancelled) setOwnerName(name);
+        });
+
+        // Ignore the result if the window closes before it arrives
+        return () => {
+            cancelled = true;
+        };
+    }, [showDetails, teamId, userId, user?.uid]);
 
     const backgroundColor = isDone
         ? DONE_COLOR
@@ -117,6 +143,12 @@ export default function TaskCard({ task, onToggleComplete, onArchive }) {
                             </Text>
                             <View style={styles.metadata}>
                                 <Text style={styles.detailsLabel}>Task information</Text>
+                                {teamId ? (
+                                    <Text style={styles.metadataText}>
+                                        <Text style={styles.metadataLabel}>Owner: </Text>
+                                        {ownerName || "Loading..."}
+                                    </Text>
+                                ) : null}
                                 <Text style={styles.metadataText}>
                                     <Text style={styles.metadataLabel}>Tags: </Text>
                                     {taskTags.length > 0 ? taskTags.map((tag) => `#${tag}`).join(", ") : "None"}

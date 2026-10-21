@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert, Platform } from "react-native"; import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
@@ -8,6 +7,15 @@ import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
 
 const UNDO_DURATION = 5000;
+
+function showAlert(title, message) {
+  // Alert.alert does nothing on web, so use the browser alert there
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 function normalizeTags(tags) {
   if (Array.isArray(tags)) return tags.map(tag => tag.trim()).filter(Boolean);
@@ -85,8 +93,12 @@ export default function HomeScreen() {
             setPendingDeletion(null);
             await reloadTasks();
           } catch (error) {
-            console.error("Failed to finalize task deletion:", error);
-            setPendingDeletion(task);
+            setPendingDeletion(null);
+            await reloadTasks();
+            showAlert(
+              "Task not deleted",
+              "This task was not deleted. Only its creator or the team owner can delete a team task. If that's you, please try again."
+            );
           }
         }, UNDO_DURATION);
       } catch (error) {

@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { getTaskById, updateTask } from "../backend/services/taskService";
+import { getTeamById } from "../backend/services/teamService";
+import { useAuth } from "../frontend/context/AuthContext";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
@@ -21,9 +23,12 @@ export default function EditTask() {
     const priorityBoxRef = useRef(null);
     const dateBoxRef = useRef(null);
 
+    const { user } = useAuth();
+    const [canDelete, setCanDelete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
 
     const [title, setTitle] = useState("");
     const [dueDate, setDueDate] = useState(new Date());
@@ -57,6 +62,15 @@ export default function EditTask() {
                 if (task.dueDate) {
                     setDueDate(task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate));
                 }
+
+                // check if user is allowed to delete the task
+                let allowed = task.userId === user?.uid;
+                if (!allowed && task.teamId) {
+                    const team = await getTeamById(task.teamId);
+                    allowed = team?.ownerId === user?.uid;
+                }
+
+                setCanDelete(allowed);
             } catch (error) {
                 Alert.alert("Error", "Couldn't load this task.");
                 router.back();
@@ -243,15 +257,17 @@ export default function EditTask() {
                 </View>
 
                 <View style={styles.buttonRow}>
-                    <TouchableOpacity
-                        style={[styles.button, styles.deleteButton]}
-                        onPress={handleDelete}
-                        disabled={isDeleting}
-                    >
-                        <Text style={styles.buttonText}>
-                            {isDeleting ? "Deleting..." : "Delete"}
-                        </Text>
-                    </TouchableOpacity>
+                    {canDelete && (
+                        <TouchableOpacity
+                            style={[styles.button, styles.deleteButton]}
+                            onPress={handleDelete}
+                            disabled={isDeleting}
+                        >
+                            <Text style={styles.buttonText}>
+                                {isDeleting ? "Deleting..." : "Delete"}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity
                         style={[styles.button, styles.saveButton]}
@@ -263,6 +279,12 @@ export default function EditTask() {
                         </Text>
                     </TouchableOpacity>
                 </View>
+
+                {!canDelete && !isLoading && (
+                    <Text style={styles.deleteNote}>
+                        Only the person who created this task or the team owner can delete it.
+                    </Text>
+                )}
             </View>
 
             <Modal
@@ -467,6 +489,12 @@ const styles = StyleSheet.create({
         color: "#e67e22",
         fontWeight: "600",
         fontSize: 13,
+    },
+    deleteNote: {
+        marginTop: 12,
+        fontSize: 12,
+        color: "#888",
+        textAlign: "center",
     },
     buttonRow: {
         flexDirection: "row",
