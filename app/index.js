@@ -343,7 +343,7 @@ export default function HomeScreen() {
           onPress={() => setShowListMenu(false)}
         >
           <View style={styles.listMenuPanel}>
-            <Text style={styles.listMenuTitle}>Switch list</Text>
+            <Text style={styles.listMenuTitle}>Switch Team</Text>
 
             <ScrollView>
               {[{ id: null, name: "Personal" }, ...teams].map((list) => {
