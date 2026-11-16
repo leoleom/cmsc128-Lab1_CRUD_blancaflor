@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert, Platform } from "react-native"; import { Ionicons } from "@expo/vector-icons";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import TaskCard from "../frontend/components/taskCard";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
+import TaskCard from "../frontend/components/taskCard";
+import { showAlert } from "../frontend/utils/alerts";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
+import { Ionicons } from "@expo/vector-icons";
 
 const UNDO_DURATION = 5000;
-
-function showAlert(title, message) {
-  // Alert.alert does nothing on web, so use the browser alert there
-  if (Platform.OS === "web") {
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-}
 
 function normalizeTags(tags) {
   if (Array.isArray(tags)) return tags.map(tag => tag.trim()).filter(Boolean);

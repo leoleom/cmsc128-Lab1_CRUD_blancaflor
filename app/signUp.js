@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { registerUser } from "../backend/services/authService";
+import { showAlert } from "../frontend/utils/alerts";
 
 export default function Signup() {
     const router = useRouter();
@@ -13,12 +14,12 @@ export default function Signup() {
 
     const handleSignup = async () => {
         if (!displayName.trim() || !email.trim() || !password) {
-            Alert.alert("Missing info", "Please fill in all fields.");
+            showAlert("Missing info", "Please fill in all fields.");
             return;
         }
 
         if (password.length < 6) {
-            Alert.alert("Weak password", "Password must be at least 6 characters.");
+            showAlert("Weak password", "Password must be at least 6 characters.");
             return;
         }
 
@@ -28,9 +29,9 @@ export default function Signup() {
             router.replace("/");
         } catch (error) {
             if (error.code === "auth/email-already-in-use") {
-                Alert.alert("Sign up failed", "That email is already registered.");
+                showAlert("Sign up failed", "That email is already registered.");
             } else {
-                Alert.alert("Sign up failed", "Please try again.");
+                showAlert("Sign up failed", "Please try again.");
             }
         } finally {
             setIsSubmitting(false);

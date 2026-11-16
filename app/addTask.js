@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { createTask } from "../backend/services/taskService";
 import { useList } from "../frontend/context/ListContext";
+import { showAlert } from "../frontend/utils/alerts";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
@@ -86,18 +87,17 @@ export default function AddTask() {
 
     const handleSave = async () => {
         if (!title.trim()) {
-            Alert.alert("Please enter a task title.");
+            showAlert("No Task Title","Please enter a task title.");
             return;
         }
 
         setIsSaving(true);
         try {
             const createdTask = await createTask({ title, details, dueDate, priority, tags, teamId: activeTeamId, });
-            Alert.alert("Task saved!");
+            showAlert("Success", "Task saved!");
             router.replace({ pathname: "/", params: { createdTaskId: createdTask.id } });
         } catch (error) {
-            console.error("handleSave failed:", error?.message || String(error));
-            Alert.alert("Couldn't save the task. Please try again.");
+            showAlert("Save Failed", "Couldn't save the task. Please try again.");
         } finally {
             setIsSaving(false);
         }

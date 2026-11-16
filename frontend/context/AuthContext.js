@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Alert, AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 import { logoutUser, subscribeToAuthChanges, verifyPendingEmailChange } from "../../backend/services/authService";
-import { syncUserRecord } from "../../backend/services/userService"; // NEW
+import { syncUserRecord } from "../../backend/services/userService";
+import { showAlertAndWait } from "../utils/alerts";
 
 const AuthContext = createContext({ user: null, isCheckingAuth: true });
 
@@ -10,16 +11,7 @@ function showEmailChangeAlert(sessionExpired = false) {
     const message = sessionExpired
         ? "If you completed the email verification, log in again using your new email address."
         : "You will be logged out now. Log in again with your new email address.";
-    if (Platform.OS === "web") {
-        window.alert(`${title}\n\n${message}`);
-        return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-        Alert.alert(title, message, [
-            { text: "OK", onPress: resolve },
-        ], { cancelable: false });
-    });
+    return showAlertAndWait(title, message);
 }
 
 export function AuthProvider({ children }) {

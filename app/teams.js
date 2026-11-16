@@ -1,34 +1,12 @@
 import { useCallback, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
 import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
-
-function showAlert(title, message) {
-    // Alert.alert does nothing on web, so use the browser alert there
-    if (Platform.OS === "web") {
-        window.alert(message ? `${title}\n\n${message}` : title);
-    } else {
-        Alert.alert(title, message);
-    }
-}
-
-function confirmAction(title, message, confirmText, onConfirm) {
-    if (Platform.OS === "web") {
-        if (window.confirm(`${title}\n\n${message}`)) {
-            onConfirm();
-        }
-        return;
-    }
-
-    Alert.alert(title, message, [
-        { text: "Cancel", style: "cancel" },
-        { text: confirmText, style: "destructive", onPress: onConfirm },
-    ]);
-}
+import { showAlert, confirmAction } from "../frontend/utils/alerts";
 
 export default function Teams() {
     const { user } = useAuth();

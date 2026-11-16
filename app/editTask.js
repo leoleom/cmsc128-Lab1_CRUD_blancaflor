@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -7,6 +7,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { getTaskById, updateTask } from "../backend/services/taskService";
 import { getTeamById } from "../backend/services/teamService";
 import { useAuth } from "../frontend/context/AuthContext";
+import { showAlert } from "../frontend/utils/alerts";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const DATE_POPOVER_WIDTH = 320;
@@ -51,7 +52,7 @@ export default function EditTask() {
             try {
                 const task = await getTaskById(id);
                 if (!task) {
-                    Alert.alert("Not found", "This task no longer exists.");
+                    showAlert("Not found", "This task no longer exists.");
                     router.back();
                     return;
                 }
@@ -72,7 +73,7 @@ export default function EditTask() {
 
                 setCanDelete(allowed);
             } catch (error) {
-                Alert.alert("Error", "Couldn't load this task.");
+                showAlert("Error", "Couldn't load this task.");
                 router.back();
             } finally {
                 setIsLoading(false);
@@ -134,7 +135,7 @@ export default function EditTask() {
 
     const handleSave = async () => {
         if (!title.trim()) {
-            Alert.alert("Missing title", "Please enter a task title.");
+            showAlert("Missing title", "Please enter a task title.");
             return;
         }
 
@@ -143,32 +144,27 @@ export default function EditTask() {
             await updateTask(id, { title, details, dueDate, priority, tags });
             router.push("/");
         } catch (error) {
-            Alert.alert("Error", "Couldn't save changes. Please try again.");
+            showAlert("Error", "Couldn't save changes. Please try again.");
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleDelete = () => {
-        Alert.alert(
+        // ask first; Home then waits 5 seconds so the delete can be undone
+        confirmAction(
             "Delete task",
             "Are you sure you want to delete this task? This can't be undone.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        setIsDeleting(true);
-                        try {
-                            router.replace({ pathname: "/", params: { pendingDeleteId: id } });
-                        } catch (error) {
-                            Alert.alert("Error", "Couldn't delete this task. Please try again.");
-                            setIsDeleting(false);
-                        }
-                    },
-                },
-            ]
+            "Delete",
+            () => {
+                setIsDeleting(true);
+                try {
+                    router.replace({ pathname: "/", params: { pendingDeleteId: id } });
+                } catch (error) {
+                    showAlert("Error", "Couldn't delete this task. Please try again.");
+                    setIsDeleting(false);
+                }
+            }
         );
     };
 

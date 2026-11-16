@@ -1,19 +1,12 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { logoutUser, changeUserPassword, updateDisplayName, requestEmailChange } from "../backend/services/authService";
+import { showAlert, confirmAction } from "../frontend/utils/alerts";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useRouter } from "expo-router";
 
-function showAlert(title, message) {
-    if (Platform.OS === "web") {
-        window.alert(message ? `${title}\n\n${message}` : title);
-    } else {
-        const { Alert } = require("react-native");
-        Alert.alert(title, message);
-    }
-}
 
 function maskEmail(email) {
     if (!email) return "";
@@ -179,22 +172,8 @@ export default function Profile() {
     };
 
     const handleLogout = () => {
-        if (Platform.OS === "web") {
-            if (window.confirm("Are you sure you want to log out?")) {
-                performLogout();
-            }
-            return;
-        }
-
-        const { Alert } = require("react-native");
-        Alert.alert(
-            "Log out",
-            "Are you sure you want to log out?",
-            [
-                { text: "Cancel", style: "cancel" },
-                { text: "Log out", style: "destructive", onPress: performLogout },
-            ]
-        );
+        // ask first, then log out only if they confirm
+        confirmAction("Log out", "Are you sure you want to log out?", "Log out", performLogout);
     };
 
     return (

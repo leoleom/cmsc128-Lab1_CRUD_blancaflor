@@ -1,16 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { requestPasswordReset } from "../backend/services/authService";
+import { showAlert } from "../frontend/utils/alerts";
 
-function showAlert(title, message) {
-    if (Platform.OS === "web") {
-        window.alert(message ? `${title}\n\n${message}` : title);
-    } else {
-        Alert.alert(title, message);
-    }
-}
 
 export default function ForgotPassword() {
     const router = useRouter();

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { loginUser } from "../backend/services/authService";
+import { showAlert } from "../frontend/utils/alerts";
 
 
 export default function Login() {
@@ -17,7 +18,7 @@ export default function Login() {
 
     const handleLogin = async () => {
         if (!email.trim() || !password) {
-            Alert.alert("Missing info", "Please enter both email and password.");
+            showAlert("Missing info", "Please enter both email and password.");
             return;
         }
 
@@ -26,7 +27,7 @@ export default function Login() {
             await loginUser({ email: email.trim(), password });
             router.replace("/");
         } catch (error) {
-            Alert.alert("Login failed", "Incorrect email or password.");
+            showAlert("Login failed", "Incorrect email or password.");
         } finally {
             setIsSubmitting(false);
         }
