@@ -5,6 +5,7 @@ import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
 import { getTasksByDate, getAllTaskDates, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
+import { showAlert } from "../frontend/utils/alerts";
 
 export default function CalendarScreen() {
     const [selectedDate, setSelectedDate] = useState(
@@ -33,10 +34,16 @@ export default function CalendarScreen() {
 
     const handleToggleComplete = async (task) => {
         try {
+            // save the change, then flip only this task on screen instead of reloading
             await toggleTaskComplete(task.id, task.isDone);
-            await loadTasks();
+            setTasks((currentTasks) =>
+                currentTasks.map((item) =>
+                    item.id === task.id ? { ...item, isDone: !task.isDone } : item
+                )
+            );
         } catch (error) {
             console.error("Failed to toggle task:", error);
+            showAlert("Couldn't update task", "The task was not changed. Please try again.");
         }
     };
 
@@ -123,31 +130,31 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  taskListContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 20,
-  },
-  monthHeader: {
-    fontSize: 25,
-    fontWeight: "bold",
-    color: "#333",
-    padding: 20,
-  },
+    safeArea: {
+        flex: 1,
+        backgroundColor: "#fff",
+    },
+    taskListContainer: {
+        flex: 1,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#333",
+        marginBottom: 8,
+    },
+    emptyText: {
+        fontSize: 14,
+        color: "#999",
+        textAlign: "center",
+        marginTop: 20,
+    },
+    monthHeader: {
+        fontSize: 25,
+        fontWeight: "bold",
+        color: "#333",
+        padding: 20,
+    },
 });

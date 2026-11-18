@@ -122,10 +122,16 @@ export default function HomeScreen() {
 
   const handleToggleComplete = async (task) => {
     try {
+      // save the change, then flip only this task on screen instead of reloading the list
       await toggleTaskComplete(task.id, task.isDone);
-      await reloadTasks();
+      setTasks(currentTasks =>
+        currentTasks.map(item =>
+          item.id === task.id ? { ...item, isDone: !task.isDone } : item
+        )
+      );
     } catch (error) {
       console.error("Failed to toggle task:", error);
+      showAlert("Couldn't update task", "The task was not changed. Please try again.");
     }
   };
 

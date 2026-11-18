@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, writeBatch, arrayUnion, arrayRemove, documentId, Timestamp } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 
 // returns the logged-in user's id
@@ -55,18 +55,26 @@ export async function getMyTeams() {
 }
 
 export async function getTeamMembers(memberIds) {
-    // look up each member's name and email in the users collection
-    const members = [];
-    for (let i = 0; i < memberIds.length; i++) {
-        const snapshot = await getDoc(doc(db, "users", memberIds[i]));
-        const data = snapshot.exists() ? snapshot.data() : {};
-        members.push({
-            id: memberIds[i],
-            displayName: data.displayName || data.email || "Unknown user",
-            email: data.email || "",
+    // look up members' records in groups, because one query can match up to 30 ids
+    const CHUNK_SIZE = 30;
+    const found = {};
+    for (let start = 0; start < memberIds.length; start += CHUNK_SIZE) {
+        const chunk = memberIds.slice(start, start + CHUNK_SIZE);
+        const snapshot = await getDocs(query(collection(db, "users"), where(documentId(), "in", chunk)));
+        snapshot.forEach((d) => {
+            found[d.id] = d.data();
         });
     }
-    return members;
+
+    // keep the original order, with a placeholder for anyone who has no record yet
+    return memberIds.map((id) => {
+        const data = found[id] || {};
+        return {
+            id,
+            displayName: data.displayName || data.email || "Unknown user",
+            email: data.email || "",
+        };
+    });
 }
 
 export async function addMemberByEmail(teamId, email) {

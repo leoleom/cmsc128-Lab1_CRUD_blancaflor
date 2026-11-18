@@ -1,19 +1,18 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
-import { createTeam, getMyTeams, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
+import { createTeam, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
 
 export default function Teams() {
     const { user } = useAuth();
     const router = useRouter();
-    const { activeTeamId, setActiveTeamId, refreshTeams } = useList();
+    const { activeTeamId, setActiveTeamId, teams, refreshTeams } = useList();
 
-    const [teams, setTeams] = useState([]);
     const [membersByTeam, setMembersByTeam] = useState({});
     const [loading, setLoading] = useState(true);
 
@@ -34,28 +33,28 @@ export default function Teams() {
     const [removeModeTeamId, setRemoveModeTeamId] = useState(null);
 
     const loadTeams = useCallback(async () => {
-        try {
-            // Get my teams, then get the members of each one
-            const fetched = await getMyTeams();
-            const members = {};
-            for (let i = 0; i < fetched.length; i++) {
-                members[fetched[i].id] = await getTeamMembers(fetched[i].memberIds);
-            }
-            setTeams(fetched);
-            setMembersByTeam(members);
-            await refreshTeams(); // keeps the Home chips in sync
-        } catch (error) {
-            console.error("Failed to load teams:", error);
-            setTeams([]);
-        } finally {
-            setLoading(false);
-        }
+        // the shared list is the only place teams are fetched, so just refresh it
+        await refreshTeams();
+        setLoading(false);
     }, [refreshTeams]);
 
-    // Reload every time this screen is opened
-    useFocusEffect(useCallback(() => {
-        loadTeams();
-    }, [loadTeams]));
+    const loadMembers = useCallback(async (team) => {
+        // fetch the members of one team and remember them by team id
+        try {
+            const members = await getTeamMembers(team.memberIds);
+            setMembersByTeam((current) => ({ ...current, [team.id]: members }));
+        } catch (error) {
+            console.error("Failed to load members:", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        // load members only for the open team, and again whenever the team list changes
+        const openTeam = teams.find((team) => team.id === expandedTeamId);
+        if (openTeam) {
+            loadMembers(openTeam);
+        }
+    }, [expandedTeamId, teams, loadMembers]);
 
     const toggleExpanded = (teamId) => {
         // collapsing or switching teams also hides the add field and remove buttons
