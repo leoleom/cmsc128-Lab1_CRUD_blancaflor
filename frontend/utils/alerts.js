@@ -1,7 +1,7 @@
 import { Alert, Platform } from "react-native";
 
 export function showAlert(title, message) {
-    // on web, use the browser's alert box, because Alert.alert does nothing there
+    // on web, use the browser's alert box
     if (Platform.OS === "web") {
         window.alert(message ? `${title}\n\n${message}` : title);
         return;

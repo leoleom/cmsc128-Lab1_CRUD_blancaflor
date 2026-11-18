@@ -404,10 +404,6 @@ const styles = StyleSheet.create({
         padding: 5,
         marginTop: 20,
     },
-    centered: {
-        justifyContent: "center",
-        alignItems: "center",
-    },
     form: {
         flex: 1,
         padding: 20,

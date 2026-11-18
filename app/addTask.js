@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -87,7 +87,7 @@ export default function AddTask() {
 
     const handleSave = async () => {
         if (!title.trim()) {
-            showAlert("No Task Title","Please enter a task title.");
+            showAlert("No Task Title", "Please enter a task title.");
             return;
         }
 
@@ -459,9 +459,5 @@ const styles = StyleSheet.create({
         color: "#e67e22",
         fontWeight: "600",
         fontSize: 15,
-    },
-    centered: {
-        justifyContent: "center",
-        alignItems: "center",
     },
 });
