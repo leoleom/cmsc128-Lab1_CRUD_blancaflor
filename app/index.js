@@ -4,18 +4,12 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
 import { showAlert } from "../frontend/utils/alerts";
+import { normalizeTags } from "../frontend/utils/tags";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
 import { Ionicons } from "@expo/vector-icons";
 
 const UNDO_DURATION = 5000;
-
-function normalizeTags(tags) {
-  if (Array.isArray(tags)) return tags.map(tag => tag.trim()).filter(Boolean);
-  return typeof tags === "string"
-    ? tags.split(",").map(tag => tag.trim()).filter(Boolean)
-    : [];
-}
 
 export default function HomeScreen() {
   const { user } = useAuth();

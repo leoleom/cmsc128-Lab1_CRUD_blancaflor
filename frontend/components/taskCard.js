@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { formatDueDate, formatDateTime } from "../utils/formatDate";
+import { normalizeTags } from "../utils/tags";
 import { useAuth } from "../context/AuthContext";
 import { getUserDisplayName } from "../../backend/services/userService";
+
 
 const PRIORITY_COLORS = {
     urgent: "#C95656",
@@ -14,35 +17,7 @@ const PRIORITY_COLORS = {
 
 const DONE_COLOR = "#f7f7f7";
 
-function formatDueDate(dueDate) {
-    if (!dueDate) return "";
-    // Firestore Timestamp to JS Date
-    const date = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
-
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yr = String(date.getFullYear());
-    const hh = String(date.getHours()).padStart(2, "0");
-    const min = String(date.getMinutes()).padStart(2, "0");
-
-    return `${mm}/${dd}/${yr}   |   ${hh}:${min}`;
-}
-
-function formatDateTime(value) {
-    if (!value) return "Not available";
-    const date = value.toDate ? value.toDate() : new Date(value);
-    if (Number.isNaN(date.getTime())) return "Not available";
-    return date.toLocaleString();
-}
-
-function normalizeTags(tags) {
-    if (Array.isArray(tags)) return tags.map((tag) => tag.trim()).filter(Boolean);
-    return typeof tags === "string"
-        ? tags.split(",").map((tag) => tag.trim()).filter(Boolean)
-        : [];
-}
-
-export default function TaskCard({ task, onToggleComplete, onArchive }) {
+export default function TaskCard({ task, onToggleComplete }) {
     const router = useRouter();
     const { user } = useAuth();
     const { id, userId, teamId, title, details, dueDate, createdAt, isDone, priority, tags } = task;
