@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -12,14 +12,20 @@ function openPopoverBelow(boxRef, keepOnScreen, setPosition, setVisible) {
     // find where the box is on screen, then place the popup just below it
     boxRef.current.measureInWindow((x, y, width, height) => {
         let left = x;
+        let popoverWidth = width;
 
         // the date and time popups are wide, so keep them inside the screen
         if (keepOnScreen) {
             const screenWidth = Dimensions.get("window").width;
-            left = Math.max(Math.min(x, screenWidth - DATE_POPOVER_WIDTH - 16), 16);
+            const sideInset = Math.min(16, screenWidth / 2);
+            popoverWidth = Math.min(DATE_POPOVER_WIDTH, screenWidth - sideInset * 2);
+            left = Math.max(
+                Math.min(x, screenWidth - popoverWidth - sideInset),
+                sideInset
+            );
         }
 
-        setPosition({ top: y + height + 4, left, width });
+        setPosition({ top: y + height + 4, left, width: popoverWidth });
         setVisible(true);
     });
 }
@@ -29,7 +35,7 @@ function PickerPopover({ visible, position, mode, value, onChange, onClose }) {
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-                <View style={[styles.popover, { top: position.top, left: position.left }]}>
+                <View style={[styles.popover, { top: position.top, left: position.left, width: position.width }]}>
                     <DateTimePicker
                         value={value}
                         mode={mode}
@@ -50,6 +56,7 @@ function PickerPopover({ visible, position, mode, value, onChange, onClose }) {
 export default function TaskForm({ screenTitle, initialValues, onSave, onClose, secondaryButton, footerNote }) {
     const priorityBoxRef = useRef(null);
     const dateBoxRef = useRef(null);
+    const timeBoxRef = useRef(null);
 
     // start from the values the screen gives us (empty for a new task)
     const [title, setTitle] = useState(initialValues?.title ?? "");
@@ -64,10 +71,10 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
     const [priorityMenuPos, setPriorityMenuPos] = useState({ top: 0, left: 0, width: 0 });
 
     const [showDatePopover, setShowDatePopover] = useState(false);
-    const [datePopoverPos, setDatePopoverPos] = useState({ top: 0, left: 0 });
+    const [datePopoverPos, setDatePopoverPos] = useState({ top: 0, left: 0, width: DATE_POPOVER_WIDTH });
 
     const [showTimePopover, setShowTimePopover] = useState(false);
-    const [timePopoverPos, setTimePopoverPos] = useState({ top: 0, left: 0 });
+    const [timePopoverPos, setTimePopoverPos] = useState({ top: 0, left: 0, width: DATE_POPOVER_WIDTH });
 
     const formattedDate = dueDate.toLocaleDateString();
     const formattedTime = dueDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -111,103 +118,110 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.form}>
-                <View style={styles.headerRow}>
-                    <Text style={styles.screenTitle}>{screenTitle}</Text>
-                    {onClose && (
-                        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                            <Ionicons name="close" size={20} color="#333" />
-                        </TouchableOpacity>
-                    )}
-                </View>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
+                <View style={styles.form}>
+                    <View style={styles.headerRow}>
+                        <Text style={styles.screenTitle}>{screenTitle}</Text>
+                        {onClose && (
+                            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                                <Ionicons name="close" size={20} color="#333" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Task Title"
-                    placeholderTextColor="#999"
-                    value={title}
-                    onChangeText={setTitle}
-                />
-
-                <View style={styles.row}>
-                    <TouchableOpacity
-                        ref={dateBoxRef}
-                        style={[styles.input, styles.halfInput, styles.rowBetween]}
-                        onPress={() => openPopoverBelow(dateBoxRef, true, setDatePopoverPos, setShowDatePopover)}
-                    >
-                        <Text style={styles.inputText}>{formattedDate}</Text>
-                        <Ionicons name="calendar-outline" size={18} color="#555" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.input, styles.halfInput, styles.rowBetween]}
-                        onPress={() => openPopoverBelow(dateBoxRef, true, setTimePopoverPos, setShowTimePopover)}
-                    >
-                        <Text style={styles.inputText}>{formattedTime}</Text>
-                        <Ionicons name="time-outline" size={18} color="#555" />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.row}>
                     <TextInput
-                        style={[styles.input, styles.halfInput]}
-                        placeholder="Tags"
+                        style={styles.input}
+                        placeholder="Task Title"
                         placeholderTextColor="#999"
-                        value={tags}
-                        onChangeText={setTags}
+                        value={title}
+                        onChangeText={setTitle}
                     />
 
-                    <TouchableOpacity
-                        ref={priorityBoxRef}
-                        style={[styles.input, styles.halfInput, styles.rowBetween]}
-                        onPress={() => openPopoverBelow(priorityBoxRef, false, setPriorityMenuPos, setShowPriorityMenu)}
-                    >
-                        <Text style={styles.inputText}>{priority || "Priority"}</Text>
-                        <Ionicons name="chevron-down-outline" size={16} color="#555" />
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.textAreaWrapper}>
-                    <TextInput
-                        style={styles.textArea}
-                        placeholder="Task Details"
-                        placeholderTextColor="#999"
-                        value={details}
-                        onChangeText={setDetails}
-                        onFocus={() => setIsDetailsFocused(true)}
-                        onBlur={() => setIsDetailsFocused(false)}
-                        multiline
-                        textAlignVertical="top"
-                    />
-                    {isDetailsFocused && (
-                        <TouchableOpacity style={styles.detailsDoneButton} onPress={() => Keyboard.dismiss()}>
-                            <Text style={styles.detailsDoneText}>Done</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <View style={styles.buttonRow}>
-                    {secondaryButton && (
+                    <View style={styles.row}>
                         <TouchableOpacity
-                            style={[styles.button, styles.secondaryButton]}
-                            onPress={secondaryButton.onPress}
-                            disabled={secondaryButton.disabled}
+                            ref={dateBoxRef}
+                            style={[styles.input, styles.halfInput, styles.rowBetween]}
+                            onPress={() => openPopoverBelow(dateBoxRef, true, setDatePopoverPos, setShowDatePopover)}
                         >
-                            <Text style={styles.buttonText}>{secondaryButton.label}</Text>
+                            <Text style={styles.inputText}>{formattedDate}</Text>
+                            <Ionicons name="calendar-outline" size={18} color="#555" />
                         </TouchableOpacity>
-                    )}
 
-                    <TouchableOpacity
-                        style={[styles.button, styles.saveButton]}
-                        onPress={handleSave}
-                        disabled={isSaving}
-                    >
-                        <Text style={styles.buttonText}>{isSaving ? "Saving..." : "Save"}</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            ref={timeBoxRef}
+                            style={[styles.input, styles.halfInput, styles.rowBetween]}
+                            onPress={() => openPopoverBelow(timeBoxRef, true, setTimePopoverPos, setShowTimePopover)}
+                        >
+                            <Text style={styles.inputText}>{formattedTime}</Text>
+                            <Ionicons name="time-outline" size={18} color="#555" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.row}>
+                        <TextInput
+                            style={[styles.input, styles.halfInput]}
+                            placeholder="Tags"
+                            placeholderTextColor="#999"
+                            value={tags}
+                            onChangeText={setTags}
+                        />
+
+                        <TouchableOpacity
+                            ref={priorityBoxRef}
+                            style={[styles.input, styles.halfInput, styles.rowBetween]}
+                            onPress={() => openPopoverBelow(priorityBoxRef, false, setPriorityMenuPos, setShowPriorityMenu)}
+                        >
+                            <Text style={styles.inputText}>{priority || "Priority"}</Text>
+                            <Ionicons name="chevron-down-outline" size={16} color="#555" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.textAreaWrapper}>
+                        <TextInput
+                            style={styles.textArea}
+                            placeholder="Task Details"
+                            placeholderTextColor="#999"
+                            value={details}
+                            onChangeText={setDetails}
+                            onFocus={() => setIsDetailsFocused(true)}
+                            onBlur={() => setIsDetailsFocused(false)}
+                            multiline
+                            textAlignVertical="top"
+                        />
+                        {isDetailsFocused && (
+                            <TouchableOpacity style={styles.detailsDoneButton} onPress={() => Keyboard.dismiss()}>
+                                <Text style={styles.detailsDoneText}>Done</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={styles.buttonRow}>
+                        {secondaryButton && (
+                            <TouchableOpacity
+                                style={[styles.button, styles.secondaryButton]}
+                                onPress={secondaryButton.onPress}
+                                disabled={secondaryButton.disabled}
+                            >
+                                <Text style={styles.buttonText}>{secondaryButton.label}</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                            style={[styles.button, styles.saveButton]}
+                            onPress={handleSave}
+                            disabled={isSaving}
+                        >
+                            <Text style={styles.buttonText}>{isSaving ? "Saving..." : "Save"}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {footerNote ? <Text style={styles.footerNote}>{footerNote}</Text> : null}
                 </View>
-
-                {footerNote ? <Text style={styles.footerNote}>{footerNote}</Text> : null}
-            </View>
+            </ScrollView>
 
             {/* Priority anchored dropdown */}
             <Modal
@@ -271,13 +285,22 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: "#fff",
-        padding: 5,
-        marginTop: 20,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 24,
     },
     form: {
-        flex: 1,
+        flexGrow: 1,
+        width: "100%",
+        maxWidth: 720,
+        alignSelf: "center",
         padding: 20,
-        paddingTop: 60,
+        paddingTop: 24,
+        justifyContent: "center",
     },
     headerRow: {
         flexDirection: "row",
@@ -313,11 +336,13 @@ const styles = StyleSheet.create({
     },
     row: {
         flexDirection: "row",
+        flexWrap: "wrap",
         justifyContent: "space-between",
         gap: 12,
     },
     halfInput: {
         flex: 1,
+        minWidth: 140,
     },
     rowBetween: {
         flexDirection: "row",

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useAuth } from "../frontend/context/AuthContext";
 import { useList } from "../frontend/context/ListContext";
 import { createTeam, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
@@ -11,10 +11,9 @@ import { showAlert, confirmAction } from "../frontend/utils/alerts";
 export default function Teams() {
     const { user } = useAuth();
     const router = useRouter();
-    const { activeTeamId, setActiveTeamId, teams, refreshTeams } = useList();
+    const { activeTeamId, setActiveTeamId, teams, teamsLoaded, refreshTeams } = useList();
 
     const [membersByTeam, setMembersByTeam] = useState({});
-    const [loading, setLoading] = useState(true);
 
     const [newTeamName, setNewTeamName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
@@ -31,12 +30,6 @@ export default function Teams() {
     // which team has its add-member field / remove buttons showing
     const [addOpenTeamId, setAddOpenTeamId] = useState(null);
     const [removeModeTeamId, setRemoveModeTeamId] = useState(null);
-
-    const loadTeams = useCallback(async () => {
-        // the shared list is the only place teams are fetched, so just refresh it
-        await refreshTeams();
-        setLoading(false);
-    }, [refreshTeams]);
 
     const loadMembers = useCallback(async (team) => {
         // fetch the members of one team and remember them by team id
@@ -94,7 +87,7 @@ export default function Teams() {
             // save the team, then hide the field and refresh the list
             await createTeam(newTeamName);
             closeCreateField();
-            await loadTeams();
+            await refreshTeams();
 
             showAlert("Team created", `"${teamName}" is ready. Tap Edit on it to add members.`);
 
@@ -119,7 +112,7 @@ export default function Teams() {
             await addMemberByEmail(team.id, email);
             setEmailInputs((current) => ({ ...current, [team.id]: "" }));
             setAddOpenTeamId(null);
-            await loadTeams();
+            await refreshTeams();
             showAlert("Member added", "They can now see this team.");
         } catch (error) {
             // error messages
@@ -146,7 +139,7 @@ export default function Teams() {
             async () => {
                 try {
                     await removeMember(team.id, member.id);
-                    await loadTeams();
+                    await refreshTeams();
                 } catch (error) {
                     console.error("removeMember failed:", error);
                     showAlert("Error", "Couldn't remove that person. Please try again.");
@@ -172,7 +165,7 @@ export default function Teams() {
 
                     // close the card and refresh the list
                     setExpandedTeamId(null);
-                    await loadTeams();
+                    await refreshTeams();
                     showAlert("Team deleted", `"${team.name}" and its tasks were deleted.`);
                 } catch (error) {
                     console.error("deleteTeam failed:", error);
@@ -358,7 +351,7 @@ export default function Teams() {
                     </View>
                 )}
 
-                {loading ? (
+                {!teamsLoaded ? (
                     <Text style={styles.emptyText}>Loading...</Text>
                 ) : teams.length === 0 ? (
                     <Text style={styles.emptyText}>You're not in any teams yet.</Text>
@@ -376,6 +369,9 @@ const styles = StyleSheet.create({
         backgroundColor: "#fff",
     },
     content: {
+        width: "100%",
+        maxWidth: 920,
+        alignSelf: "center",
         padding: 20,
         paddingBottom: 140,
     },
@@ -410,6 +406,7 @@ const styles = StyleSheet.create({
     },
     createRow: {
         flexDirection: "row",
+        flexWrap: "wrap",
         gap: 10,
     },
     input: {
@@ -423,6 +420,7 @@ const styles = StyleSheet.create({
     },
     createInput: {
         flex: 1,
+        minWidth: 140,
     },
     createButton: {
         backgroundColor: "#4caf50",
@@ -563,11 +561,13 @@ const styles = StyleSheet.create({
     },
     addMemberRow: {
         flexDirection: "row",
+        flexWrap: "wrap",
         gap: 10,
         marginTop: 12,
     },
     addMemberInput: {
         flex: 1,
+        minWidth: 180,
     },
     addButton: {
         backgroundColor: "#4caf50",

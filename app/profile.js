@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { logoutUser, changeUserPassword, updateDisplayName, requestEmailChange } from "../backend/services/authService";
@@ -178,54 +178,56 @@ export default function Profile() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.headerRow}>
-                <Text style={styles.screenTitle}>PROFILE</Text>
-            </View>
-
-            <View style={styles.avatarSection}>
-                <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person-circle-outline" size={72} color="#333" />
-                </View>
-            </View>
-
-            <View style={styles.infoSection}>
-                <Text style={styles.label}>Display Name</Text>
-                <View style={styles.valueRow}>
-                    <Text style={styles.value}>{user?.displayName || "Not set"}</Text>
-                    <TouchableOpacity onPress={openNameModal}>
-                        <Ionicons name="create-outline" size={22} color="#333" />
-                    </TouchableOpacity>
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+                <View style={styles.headerRow}>
+                    <Text style={styles.screenTitle}>PROFILE</Text>
                 </View>
 
-                <Text style={styles.label}>Email</Text>
-                <View style={styles.valueRow}>
-                    <Text style={styles.value}>{maskEmail(user?.email)}</Text>
-                    <TouchableOpacity onPress={openEmailModal}>
-                        <Ionicons name="create-outline" size={22} color="#333" />
-                    </TouchableOpacity>
+                <View style={styles.avatarSection}>
+                    <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person-circle-outline" size={72} color="#333" />
+                    </View>
                 </View>
-            </View>
 
-            <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => setShowPasswordModal(true)}
-            >
-                <Ionicons name="key-outline" size={18} color="#333" />
-                <Text style={styles.actionButtonText}>Change Password</Text>
-            </TouchableOpacity>
+                <View style={styles.infoSection}>
+                    <Text style={styles.label}>Display Name</Text>
+                    <View style={styles.valueRow}>
+                        <Text style={styles.value}>{user?.displayName || "Not set"}</Text>
+                        <TouchableOpacity onPress={openNameModal}>
+                            <Ionicons name="create-outline" size={22} color="#333" />
+                        </TouchableOpacity>
+                    </View>
 
-            <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push("/teams")}
-            >
-                <Ionicons name="people-outline" size={18} color="#333" />
-                <Text style={styles.actionButtonText}>My Teams</Text>
-            </TouchableOpacity>
+                    <Text style={styles.label}>Email</Text>
+                    <View style={styles.valueRow}>
+                        <Text style={styles.value}>{maskEmail(user?.email)}</Text>
+                        <TouchableOpacity onPress={openEmailModal}>
+                            <Ionicons name="create-outline" size={22} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={18} color="#fff" />
-                <Text style={styles.logoutButtonText}>Log Out</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => setShowPasswordModal(true)}
+                >
+                    <Ionicons name="key-outline" size={18} color="#333" />
+                    <Text style={styles.actionButtonText}>Change Password</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => router.push("/teams")}
+                >
+                    <Ionicons name="people-outline" size={18} color="#333" />
+                    <Text style={styles.actionButtonText}>My Teams</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                    <Ionicons name="log-out-outline" size={18} color="#fff" />
+                    <Text style={styles.logoutButtonText}>Log Out</Text>
+                </TouchableOpacity>
+            </ScrollView>
 
             <Modal
                 visible={showNameModal}
@@ -234,7 +236,11 @@ export default function Profile() {
                 onRequestClose={closeNameModal}
             >
                 <View style={styles.modalBackdrop}>
-                    <View style={styles.modalPanel}>
+                    <ScrollView
+                        style={styles.modalPanel}
+                        contentContainerStyle={styles.modalPanelContent}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Edit Display Name</Text>
                             <TouchableOpacity onPress={closeNameModal}>
@@ -259,7 +265,7 @@ export default function Profile() {
                                 {isSavingName ? "Saving..." : "Save"}
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </Modal>
 
@@ -270,7 +276,11 @@ export default function Profile() {
                 onRequestClose={closeEmailModal}
             >
                 <View style={styles.modalBackdrop}>
-                    <View style={styles.modalPanel}>
+                    <ScrollView
+                        style={styles.modalPanel}
+                        contentContainerStyle={styles.modalPanelContent}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Edit Email</Text>
                             <TouchableOpacity onPress={closeEmailModal}>
@@ -305,7 +315,7 @@ export default function Profile() {
                                 {isSavingEmail ? "Saving..." : "Save"}
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </Modal>
 
@@ -316,7 +326,11 @@ export default function Profile() {
                 onRequestClose={() => setShowPasswordModal(false)}
             >
                 <View style={styles.modalBackdrop}>
-                    <View style={styles.modalPanel}>
+                    <ScrollView
+                        style={styles.modalPanel}
+                        contentContainerStyle={styles.modalPanelContent}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Change Password</Text>
                             <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
@@ -358,7 +372,7 @@ export default function Profile() {
                                 {isSubmitting ? "Updating..." : "Update Password"}
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </Modal>
         </SafeAreaView>
@@ -370,12 +384,22 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#fff"
     },
+    scrollView: {
+        flex: 1,
+    },
+    content: {
+        flexGrow: 1,
+        width: "100%",
+        maxWidth: 600,
+        alignSelf: "center",
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 140,
+    },
     headerRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        paddingHorizontal: 20,
-        paddingTop: 20,
         marginBottom: 24,
     },
     screenTitle: {
@@ -397,7 +421,6 @@ const styles = StyleSheet.create({
         overflow: "hidden",
     },
     infoSection: {
-        paddingHorizontal: 20,
         marginBottom: 24
     },
     label: {
@@ -412,6 +435,7 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     value: {
+        flexShrink: 1,
         fontSize: 17,
         color: "#000",
         fontWeight: "600",
@@ -424,7 +448,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#e5e4e4",
         borderRadius: 10,
         paddingVertical: 14,
-        marginHorizontal: 20,
         marginBottom: 12,
     },
     actionButtonText: {
@@ -440,7 +463,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#d9534f",
         borderRadius: 10,
         paddingVertical: 14,
-        marginHorizontal: 20,
     },
     logoutButtonText: {
         color: "#fff",
@@ -456,8 +478,12 @@ const styles = StyleSheet.create({
     },
     modalPanel: {
         width: "100%",
+        maxWidth: 520,
+        maxHeight: "90%",
         backgroundColor: "#fff",
         borderRadius: 16,
+    },
+    modalPanelContent: {
         padding: 20,
     },
     modalHeader: {

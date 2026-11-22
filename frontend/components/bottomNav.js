@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "expo-router";
 export default function BottomNav() {
     const router = useRouter();
     const pathname = usePathname();
+    const isAddTaskPage = pathname === "/addTask";
 
     return (
         <View style={styles.container}>
@@ -13,7 +14,10 @@ export default function BottomNav() {
                 <Ionicons name="home" size={24} color={"#333"} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.addButton} onPress={() => router.push("/addTask")}>
+            <TouchableOpacity
+                style={[styles.addButton, isAddTaskPage && styles.addButtonActive]}
+                onPress={() => router.push("/addTask")}
+            >
                 <Ionicons name="add" size={50} color="#fff" />
             </TouchableOpacity>
 
@@ -54,6 +58,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         marginTop: 0,
+    },
+    addButtonActive: {
+        backgroundColor: "#9e9e9e",
     },
     highlightCircle: {
         position: "absolute",   // sits behind the icon

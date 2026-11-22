@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -35,6 +35,11 @@ export default function Login() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+            >
             <View style={styles.form}>
                 <Text style={styles.screenTitle}>LOG IN</Text>
 
@@ -114,6 +119,7 @@ export default function Login() {
                     </Text>
                 </Text>
             </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -123,10 +129,19 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#fff"
     },
-    form: {
+    scrollView: {
         flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
         padding: 20,
-        justifyContent: "center"
+    },
+    form: {
+        flexGrow: 1,
+        width: "100%",
+        maxWidth: 480,
+        alignSelf: "center",
+        justifyContent: "center",
     },
     screenTitle: {
         fontSize: 26,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
@@ -210,7 +211,8 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <View style={styles.content}>
 
       <View style={styles.header}>
         <Ionicons name="person-circle-outline" size={54} color="#333" />
@@ -389,7 +391,8 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </Modal>
 
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -397,13 +400,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingTop: 60,
+  },
+  content: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 960,
+    alignSelf: "center",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 12,
     marginBottom: 25,
     gap: 10,
   },
@@ -441,6 +449,7 @@ const styles = StyleSheet.create({
   },
   listMenuPanel: {
     width: "100%",
+    maxWidth: 520,
     maxHeight: "70%",
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -549,6 +558,7 @@ const styles = StyleSheet.create({
   },
   filterPanel: {
     width: "100%",
+    maxWidth: 600,
     maxHeight: "85%",
     backgroundColor: "#fff",
     borderRadius: 20,

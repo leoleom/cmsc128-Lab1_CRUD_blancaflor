@@ -5,6 +5,7 @@ import { getMyTeams } from "../../backend/services/teamService";
 const ListContext = createContext({
     activeTeamId: null,
     teams: [],
+    teamsLoaded: false,
     setActiveTeamId: () => {},
     refreshTeams: async () => {},
 });
@@ -14,11 +15,13 @@ export function ListProvider({ children }) {
     const uid = user?.uid;
     const [teams, setTeams] = useState([]);
     const [activeTeamId, setActiveTeamId] = useState(null);
+    const [teamsLoaded, setTeamsLoaded] = useState(false);
 
     const refreshTeams = useCallback(async () => {
         if (!uid) {
             setTeams([]);
             setActiveTeamId(null);
+            setTeamsLoaded(true);
             return;
         }
         try {
@@ -28,15 +31,18 @@ export function ListProvider({ children }) {
             setActiveTeamId((cur) => (cur && mine.some((t) => t.id === cur) ? cur : null));
         } catch (error) {
             console.error("Failed to load teams:", error);
+        } finally {
+            setTeamsLoaded(true);
         }
     }, [uid]);
 
     useEffect(() => {
+        setTeamsLoaded(false);
         refreshTeams();
     }, [refreshTeams]);
 
     return (
-        <ListContext.Provider value={{ activeTeamId, teams, setActiveTeamId, refreshTeams }}>
+        <ListContext.Provider value={{ activeTeamId, teams, teamsLoaded, setActiveTeamId, refreshTeams }}>
             {children}
         </ListContext.Provider>
     );
