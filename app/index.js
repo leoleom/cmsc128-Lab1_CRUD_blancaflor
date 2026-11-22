@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const [pendingDeletion, setPendingDeletion] = useState(null);
   const deletionTimerRef = useRef(null);
   const handledDeleteIdRef = useRef(null);
+  const hasFocusedRef = useRef(false);
   const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
 
   const router = useRouter();
@@ -47,7 +48,11 @@ export default function HomeScreen() {
       let cancelled = false;
 
       const loadData = async () => {
-        await refreshTeams();
+        const shouldRefreshTeams = hasFocusedRef.current;
+        hasFocusedRef.current = true;
+        if (shouldRefreshTeams) {
+          await refreshTeams();
+        }
 
         if (!cancelled) {
           await reloadTasks();

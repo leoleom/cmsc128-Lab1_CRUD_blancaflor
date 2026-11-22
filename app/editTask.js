@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getTaskById, updateTask } from "../backend/services/taskService";
-import { getTeamById } from "../backend/services/teamService";
-import { useAuth } from "../frontend/context/AuthContext";
 import TaskForm from "../frontend/components/taskForm";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
 
@@ -15,7 +13,6 @@ function capitalize(word) {
 export default function EditTask() {
     const router = useRouter();
     const { id } = useLocalSearchParams();
-    const { user } = useAuth();
 
     const [initialValues, setInitialValues] = useState(null);
     const [canDelete, setCanDelete] = useState(false);
@@ -44,13 +41,7 @@ export default function EditTask() {
                         : new Date(),
                 });
 
-                // the creator or the team owner may delete the task
-                let allowed = task.userId === user?.uid;
-                if (!allowed && task.teamId) {
-                    const team = await getTeamById(task.teamId);
-                    allowed = team?.ownerId === user?.uid;
-                }
-                setCanDelete(allowed);
+                setCanDelete(task.canDelete);
             } catch (error) {
                 showAlert("Error", "Couldn't load this task.");
                 router.back();

@@ -28,15 +28,19 @@ export async function getTaskById(taskId) {
         const snapshot = await getDoc(doc(db, "tasks", taskId));
         if (!snapshot.exists()) return null;
         const data = snapshot.data();
+        let canDelete = data.userId === uid;
 
         // team task: only members may see it; personal task: only its owner
         if (data.teamId) {
             const team = await getDoc(doc(db, "teams", data.teamId));
-            if (!team.exists() || !team.data().memberIds?.includes(uid)) return null;
-        } else if (data.userId !== uid) {
+            if (!team.exists()) return null;
+            const teamData = team.data();
+            if (!teamData.memberIds?.includes(uid)) return null;
+            canDelete = canDelete || teamData.ownerId === uid;
+        } else if (!canDelete) {
             return null;
         }
-        return { id: snapshot.id, ...data };
+        return { id: snapshot.id, ...data, canDelete };
     } catch (error) {
         // refuse people who aren't allowed
         if (error.code === "permission-denied") return null;
