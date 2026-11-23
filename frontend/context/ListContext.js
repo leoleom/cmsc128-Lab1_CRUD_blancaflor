@@ -6,7 +6,11 @@ const ListContext = createContext({
     activeTeamId: null,
     teams: [],
     teamsLoaded: false,
+    editingTaskId: null,
+    pendingDeletionTask: null,
     setActiveTeamId: () => {},
+    setEditingTaskId: () => {},
+    setPendingDeletionTask: () => {},
     refreshTeams: async () => {},
 });
 
@@ -16,11 +20,15 @@ export function ListProvider({ children }) {
     const [teams, setTeams] = useState([]);
     const [activeTeamId, setActiveTeamId] = useState(null);
     const [teamsLoaded, setTeamsLoaded] = useState(false);
+    const [editingTaskId, setEditingTaskId] = useState(null);
+    const [pendingDeletionTask, setPendingDeletionTask] = useState(null);
 
     const refreshTeams = useCallback(async () => {
         if (!uid) {
             setTeams([]);
             setActiveTeamId(null);
+            setEditingTaskId(null);
+            setPendingDeletionTask(null);
             setTeamsLoaded(true);
             return;
         }
@@ -42,7 +50,19 @@ export function ListProvider({ children }) {
     }, [refreshTeams]);
 
     return (
-        <ListContext.Provider value={{ activeTeamId, teams, teamsLoaded, setActiveTeamId, refreshTeams }}>
+        <ListContext.Provider
+            value={{
+                activeTeamId,
+                teams,
+                teamsLoaded,
+                editingTaskId,
+                pendingDeletionTask,
+                setActiveTeamId,
+                setEditingTaskId,
+                setPendingDeletionTask,
+                refreshTeams,
+            }}
+        >
             {children}
         </ListContext.Provider>
     );

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { getTaskById, updateTask } from "../backend/services/taskService";
 import TaskForm from "../frontend/components/taskForm";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
+import { useList } from "../frontend/context/ListContext";
 
 function capitalize(word) {
     if (!word) return "";
@@ -12,24 +13,32 @@ function capitalize(word) {
 
 export default function EditTask() {
     const router = useRouter();
-    const { id } = useLocalSearchParams();
+    const { editingTaskId, setEditingTaskId, setPendingDeletionTask } = useList();
 
     const [initialValues, setInitialValues] = useState(null);
+    const [taskToDelete, setTaskToDelete] = useState(null);
     const [canDelete, setCanDelete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
+        if (!editingTaskId) {
+            showAlert("Task unavailable", "Open a task from your list to edit it.");
+            router.replace("/");
+            return;
+        }
+
         const loadTask = async () => {
             try {
                 // load the task, or leave if it is missing or not yours
-                const task = await getTaskById(id);
+                const task = await getTaskById(editingTaskId);
                 if (!task) {
                     showAlert("Not found", "This task no longer exists.");
-                    router.back();
+                    router.replace("/");
                     return;
                 }
 
+                setTaskToDelete(task);
                 // give the form the values it should start with
                 setInitialValues({
                     title: task.title || "",
@@ -44,20 +53,22 @@ export default function EditTask() {
                 setCanDelete(task.canDelete);
             } catch (error) {
                 showAlert("Error", "Couldn't load this task.");
-                router.back();
+                router.replace("/");
             } finally {
                 setIsLoading(false);
             }
         };
 
-        if (id) loadTask();
-    }, [id]);
+        loadTask();
+    }, [editingTaskId, router]);
+
+    useEffect(() => () => setEditingTaskId(null), [setEditingTaskId]);
 
     const handleSave = async (values) => {
         try {
             // save the edits, then go back to Home
-            await updateTask(id, values);
-            router.push("/");
+            await updateTask(editingTaskId, values);
+            router.replace("/");
         } catch (error) {
             showAlert("Error", "Couldn't save changes. Please try again.");
         }
@@ -72,7 +83,8 @@ export default function EditTask() {
             () => {
                 setIsDeleting(true);
                 try {
-                    router.replace({ pathname: "/", params: { pendingDeleteId: id } });
+                    setPendingDeletionTask(taskToDelete);
+                    router.replace("/");
                 } catch (error) {
                     showAlert("Error", "Couldn't delete this task. Please try again.");
                     setIsDeleting(false);

@@ -1,62 +1,82 @@
 import { useRef, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Keyboard, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Pressable, StyleSheet, Modal, FlatList, Keyboard, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { showAlert } from "../utils/alerts";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
-const DATE_POPOVER_WIDTH = 320;
 
-function openPopoverBelow(boxRef, keepOnScreen, setPosition, setVisible) {
-    // find where the box is on screen, then place the popup just below it
+function openMenuBelow(boxRef, setPosition, setVisible) {
     boxRef.current.measureInWindow((x, y, width, height) => {
-        let left = x;
-        let popoverWidth = width;
-
-        // the date and time popups are wide, so keep them inside the screen
-        if (keepOnScreen) {
-            const screenWidth = Dimensions.get("window").width;
-            const sideInset = Math.min(16, screenWidth / 2);
-            popoverWidth = Math.min(DATE_POPOVER_WIDTH, screenWidth - sideInset * 2);
-            left = Math.max(
-                Math.min(x, screenWidth - popoverWidth - sideInset),
-                sideInset
-            );
-        }
-
-        setPosition({ top: y + height + 4, left, width: popoverWidth });
+        setPosition({ top: y + height + 4, left: x, width });
         setVisible(true);
     });
 }
 
-function PickerPopover({ visible, position, mode, value, onChange, onClose }) {
-    // one popup used for both the date picker and the time picker
+function PickerPopover({ visible, mode, value, onChange, onClose }) {
+    const pad = (part) => String(part).padStart(2, "0");
+    const webValue = mode === "date"
+        ? `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+        : `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+
+    const handleWebChange = (event) => {
+        const selectedValue = event.target.value;
+        if (!selectedValue) return;
+
+        if (mode === "date") {
+            const [year, month, day] = selectedValue.split("-").map(Number);
+            onChange(null, new Date(
+                year,
+                month - 1,
+                day,
+                value.getHours(),
+                value.getMinutes(),
+                value.getSeconds(),
+                value.getMilliseconds()
+            ));
+            return;
+        }
+
+        const [hours, minutes] = selectedValue.split(":").map(Number);
+        const selectedTime = new Date(value);
+        selectedTime.setHours(hours, minutes);
+        onChange(null, selectedTime);
+    };
+
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-                <View style={[styles.popover, { top: position.top, left: position.left, width: position.width }]}>
-                    <DateTimePicker
-                        value={value}
-                        mode={mode}
-                        display="spinner"
-                        onValueChange={onChange}
-                        accentColor="#e67e22"
-                        themeVariant="light"
-                    />
+            <View style={styles.pickerModal}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.pickerPanel}>
+                    {Platform.OS === "web" ? (
+                        <input
+                            type={mode}
+                            value={webValue}
+                            onChange={handleWebChange}
+                            style={styles.webPickerInput}
+                        />
+                    ) : (
+                        <DateTimePicker
+                            value={value}
+                            mode={mode}
+                            display={Platform.OS === "ios" ? "compact" : "default"}
+                            onValueChange={onChange}
+                            accentColor="#e67e22"
+                            themeVariant="light"
+                        />
+                    )}
                     <TouchableOpacity style={styles.popoverDoneButton} onPress={onClose}>
                         <Text style={styles.popoverDoneText}>Done</Text>
                     </TouchableOpacity>
                 </View>
-            </TouchableOpacity>
+            </View>
         </Modal>
     );
 }
 
 export default function TaskForm({ screenTitle, initialValues, onSave, onClose, secondaryButton, footerNote }) {
     const priorityBoxRef = useRef(null);
-    const dateBoxRef = useRef(null);
-    const timeBoxRef = useRef(null);
 
     // start from the values the screen gives us (empty for a new task)
     const [title, setTitle] = useState(initialValues?.title ?? "");
@@ -71,10 +91,7 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
     const [priorityMenuPos, setPriorityMenuPos] = useState({ top: 0, left: 0, width: 0 });
 
     const [showDatePopover, setShowDatePopover] = useState(false);
-    const [datePopoverPos, setDatePopoverPos] = useState({ top: 0, left: 0, width: DATE_POPOVER_WIDTH });
-
     const [showTimePopover, setShowTimePopover] = useState(false);
-    const [timePopoverPos, setTimePopoverPos] = useState({ top: 0, left: 0, width: DATE_POPOVER_WIDTH });
 
     const formattedDate = dueDate.toLocaleDateString();
     const formattedTime = dueDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -143,18 +160,16 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
 
                     <View style={styles.row}>
                         <TouchableOpacity
-                            ref={dateBoxRef}
                             style={[styles.input, styles.halfInput, styles.rowBetween]}
-                            onPress={() => openPopoverBelow(dateBoxRef, true, setDatePopoverPos, setShowDatePopover)}
+                            onPress={() => setShowDatePopover(true)}
                         >
                             <Text style={styles.inputText}>{formattedDate}</Text>
                             <Ionicons name="calendar-outline" size={18} color="#555" />
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            ref={timeBoxRef}
                             style={[styles.input, styles.halfInput, styles.rowBetween]}
-                            onPress={() => openPopoverBelow(timeBoxRef, true, setTimePopoverPos, setShowTimePopover)}
+                            onPress={() => setShowTimePopover(true)}
                         >
                             <Text style={styles.inputText}>{formattedTime}</Text>
                             <Ionicons name="time-outline" size={18} color="#555" />
@@ -173,7 +188,7 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
                         <TouchableOpacity
                             ref={priorityBoxRef}
                             style={[styles.input, styles.halfInput, styles.rowBetween]}
-                            onPress={() => openPopoverBelow(priorityBoxRef, false, setPriorityMenuPos, setShowPriorityMenu)}
+                            onPress={() => openMenuBelow(priorityBoxRef, setPriorityMenuPos, setShowPriorityMenu)}
                         >
                             <Text style={styles.inputText}>{priority || "Priority"}</Text>
                             <Ionicons name="chevron-down-outline" size={16} color="#555" />
@@ -262,7 +277,6 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
 
             <PickerPopover
                 visible={showDatePopover}
-                position={datePopoverPos}
                 mode="date"
                 value={dueDate}
                 onChange={handleDateChange}
@@ -271,7 +285,6 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
 
             <PickerPopover
                 visible={showTimePopover}
-                position={timePopoverPos}
                 mode="time"
                 value={dueDate}
                 onChange={handleTimeChange}
@@ -300,6 +313,7 @@ const styles = StyleSheet.create({
         alignSelf: "center",
         padding: 20,
         paddingTop: 24,
+        paddingBottom: 70,
         justifyContent: "center",
     },
     headerRow: {
@@ -430,18 +444,37 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: "#333",
     },
-    popover: {
-        position: "absolute",
+    pickerModal: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "rgba(0, 0, 0, 0.35)",
+        padding: 16,
+    },
+    pickerPanel: {
+        width: "100%",
+        maxWidth: 360,
         backgroundColor: "#fff",
         borderRadius: 12,
         borderWidth: 1,
         borderColor: "#ccc",
-        padding: 8,
+        padding: 12,
         elevation: 4,
         boxShadowColor: "#000",
         boxShadowOpacity: 0.15,
         boxShadowRadius: 4,
         boxShadowOffset: { width: 0, height: 2 },
+    },
+    webPickerInput: {
+        width: "100%",
+        minHeight: 44,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 8,
+        backgroundColor: "#eee",
+        color: "#333",
+        fontSize: 16,
     },
     popoverDoneButton: {
         alignSelf: "flex-end",

@@ -11,9 +11,9 @@ export default function AddTask() {
     const handleSave = async (values) => {
         try {
             // save the task into the list that is open on Home, then go back there
-            const createdTask = await createTask({ ...values, teamId: activeTeamId });
+            await createTask({ ...values, teamId: activeTeamId });
             showAlert("Task saved!");
-            router.replace({ pathname: "/", params: { createdTaskId: createdTask.id } });
+            router.replace("/");
         } catch (error) {
             console.error("handleSave failed:", error?.message || String(error));
             showAlert("Couldn't save the task. Please try again.");

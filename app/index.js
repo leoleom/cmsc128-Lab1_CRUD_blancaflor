@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
+import { useFocusEffect, useRouter } from "expo-router";
+import { deleteTask, getAllTasks, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
 import { showAlert } from "../frontend/utils/alerts";
 import { normalizeTags } from "../frontend/utils/tags";
@@ -14,7 +14,14 @@ const UNDO_DURATION = 5000;
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const { activeTeamId, setActiveTeamId, teams, refreshTeams } = useList();
+  const {
+    activeTeamId,
+    setActiveTeamId,
+    teams,
+    refreshTeams,
+    pendingDeletionTask,
+    setPendingDeletionTask,
+  } = useList();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
@@ -25,9 +32,7 @@ export default function HomeScreen() {
   const [showListMenu, setShowListMenu] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState(null);
   const deletionTimerRef = useRef(null);
-  const handledDeleteIdRef = useRef(null);
   const hasFocusedRef = useRef(false);
-  const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
 
   const router = useRouter();
 
@@ -64,47 +69,32 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [refreshTeams, reloadTasks, createdTaskId])
+    }, [refreshTeams, reloadTasks])
   );
 
-  useEffect(() => {
-    if (!pendingDeleteId || handledDeleteIdRef.current === pendingDeleteId) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!pendingDeletionTask) return;
 
-    handledDeleteIdRef.current = pendingDeleteId;
-    let cancelled = false;
-
-    const prepareDeletion = async () => {
-      try {
-        const task = await getTaskById(pendingDeleteId);
-        if (cancelled || !task) return;
-
-        setPendingDeletion(task);
-        setTasks(currentTasks => currentTasks.filter(item => item.id !== task.id));
-        deletionTimerRef.current = setTimeout(async () => {
-          try {
-            await deleteTask(task.id);
-            setPendingDeletion(null);
-            await reloadTasks();
-          } catch (error) {
-            setPendingDeletion(null);
-            await reloadTasks();
-            showAlert(
-              "Task not deleted",
-              "This task was not deleted. Only its creator or the team owner can delete a team task. If that's you, please try again."
-            );
-          }
-        }, UNDO_DURATION);
-      } catch (error) {
-        console.error("Failed to prepare task deletion:", error);
-      }
-    };
-
-    prepareDeletion();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingDeleteId, reloadTasks]);
+      setPendingDeletionTask(null);
+      setPendingDeletion(pendingDeletionTask);
+      setTasks(currentTasks => currentTasks.filter(item => item.id !== pendingDeletionTask.id));
+      deletionTimerRef.current = setTimeout(async () => {
+        try {
+          await deleteTask(pendingDeletionTask.id);
+          setPendingDeletion(null);
+          await reloadTasks();
+        } catch (error) {
+          setPendingDeletion(null);
+          await reloadTasks();
+          showAlert(
+            "Task not deleted",
+            "This task was not deleted. Only its creator or the team owner can delete a team task. If that's you, please try again."
+          );
+        }
+      }, UNDO_DURATION);
+    }, [pendingDeletionTask, reloadTasks, setPendingDeletionTask])
+  );
 
   useEffect(() => () => {
     if (deletionTimerRef.current) clearTimeout(deletionTimerRef.current);
