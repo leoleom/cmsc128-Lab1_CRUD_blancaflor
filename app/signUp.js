@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { registerUser } from "../backend/services/authService";
 import { showAlert } from "../frontend/utils/alerts";
+import PasswordInput from "../frontend/components/passwordInput";
 
 export default function Signup() {
     const router = useRouter();
@@ -18,8 +19,8 @@ export default function Signup() {
             return;
         }
 
-        if (password.length < 6) {
-            showAlert("Weak password", "Password must be at least 6 characters.");
+        if (password.length < 8) {
+            showAlert("Weak password", "Password must be at least 8 characters.");
             return;
         }
 
@@ -66,15 +67,14 @@ export default function Signup() {
                     keyboardType="email-address"
                 />
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    placeholderTextColor="#999"
+                <PasswordInput
+                    containerStyle={styles.passwordInputContainer}
+                    inputStyle={[styles.input, styles.passwordInput]}
+                    buttonStyle={styles.passwordVisibilityButton}
+                    placeholder="Password (must be 8 characters)"
                     value={password}
                     onChangeText={setPassword}
-                    secureTextEntry
                 />
-
                 <TouchableOpacity style={styles.signupButton}
                     onPress={handleSignup} disabled={isSubmitting}>
                     <Text style={styles.buttonText}>
@@ -129,6 +129,26 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         marginBottom: 14,
         fontSize: 14,
+    },
+    passwordInputContainer: {
+        position: "relative",
+        height: 46,
+        marginBottom: 14,
+    },
+    passwordInput: {
+        height: 46,
+        marginBottom: 0,
+        paddingRight: 48,
+    },
+    passwordVisibilityButton: {
+        position: "absolute",
+        top: 0,
+        right: 2,
+        bottom: 0,
+        width: 40,
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1,
     },
     signupButton: {
         backgroundColor: "#4caf50",

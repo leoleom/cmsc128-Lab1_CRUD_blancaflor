@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import PasswordInput from "../frontend/components/passwordInput";
 import { logoutUser, changeUserPassword, updateDisplayName, requestEmailChange } from "../backend/services/authService";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
 import { useAuth } from "../frontend/context/AuthContext";
@@ -48,8 +49,8 @@ export default function Profile() {
             return;
         }
 
-        if (newPassword.length < 6) {
-            showAlert("Weak password", "New password must be at least 6 characters.");
+        if (newPassword.length < 8) {
+            showAlert("Weak password", "New password must be at least 8 characters.");
             return;
         }
 
@@ -237,8 +238,8 @@ export default function Profile() {
             >
                 <View style={styles.modalBackdrop}>
                     <ScrollView
-                        style={styles.modalPanel}
-                        contentContainerStyle={styles.modalPanelContent}
+                        style={[styles.modalPanel, styles.compactModalPanel]}
+                        contentContainerStyle={[styles.modalPanelContent, styles.compactModalContent]}
                         keyboardShouldPersistTaps="handled"
                     >
                         <View style={styles.modalHeader}>
@@ -277,8 +278,8 @@ export default function Profile() {
             >
                 <View style={styles.modalBackdrop}>
                     <ScrollView
-                        style={styles.modalPanel}
-                        contentContainerStyle={styles.modalPanelContent}
+                        style={[styles.modalPanel, styles.compactModalPanel]}
+                        contentContainerStyle={[styles.modalPanelContent, styles.compactModalContent]}
                         keyboardShouldPersistTaps="handled"
                     >
                         <View style={styles.modalHeader}>
@@ -297,14 +298,16 @@ export default function Profile() {
                             autoCapitalize="none"
                             keyboardType="email-address"
                         />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Current Password"
-                            placeholderTextColor="#999"
-                            value={editEmailPassword}
-                            onChangeText={setEditEmailPassword}
-                            secureTextEntry
-                        />
+                        <View style={styles.passwordField}>
+                            <PasswordInput
+                                accessibilityLabel="Current password"
+                                containerStyle={styles.passwordInputContainer}
+                                inputStyle={[styles.input, styles.passwordInput]}
+                                placeholder="Current Password"
+                                value={editEmailPassword}
+                                onChangeText={setEditEmailPassword}
+                            />
+                        </View>
 
                         <TouchableOpacity
                             style={styles.saveButton}
@@ -327,8 +330,8 @@ export default function Profile() {
             >
                 <View style={styles.modalBackdrop}>
                     <ScrollView
-                        style={styles.modalPanel}
-                        contentContainerStyle={styles.modalPanelContent}
+                        style={[styles.modalPanel, styles.compactModalPanel]}
+                        contentContainerStyle={[styles.modalPanelContent, styles.compactModalContent]}
                         keyboardShouldPersistTaps="handled"
                     >
                         <View style={styles.modalHeader}>
@@ -338,30 +341,39 @@ export default function Profile() {
                             </TouchableOpacity>
                         </View>
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Current Password"
-                            placeholderTextColor="#999"
-                            value={currentPassword}
-                            onChangeText={setCurrentPassword}
-                            secureTextEntry
-                        />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="New Password"
-                            placeholderTextColor="#999"
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            secureTextEntry
-                        />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Confirm New Password"
-                            placeholderTextColor="#999"
-                            value={confirmPassword}
-                            onChangeText={setConfirmPassword}
-                            secureTextEntry
-                        />
+                        <View style={styles.passwordField}>
+                            <Text style={styles.passwordLabel}>Current password</Text>
+                            <PasswordInput
+                                accessibilityLabel="Current password"
+                                containerStyle={styles.passwordInputContainer}
+                                inputStyle={[styles.input, styles.passwordInput]}
+                                placeholder="Enter current password"
+                                value={currentPassword}
+                                onChangeText={setCurrentPassword}
+                            />
+                        </View>
+                        <View style={styles.passwordField}>
+                            <Text style={styles.passwordLabel}>New password (must be 8 characters)</Text>
+                            <PasswordInput
+                                accessibilityLabel="New password (must be 8 characters)"
+                                containerStyle={styles.passwordInputContainer}
+                                inputStyle={[styles.input, styles.passwordInput]}
+                                placeholder="Enter new password"
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                            />
+                        </View>
+                        <View style={styles.passwordField}>
+                            <Text style={styles.passwordLabel}>Confirm new password</Text>
+                            <PasswordInput
+                                accessibilityLabel="Confirm new password"
+                                containerStyle={styles.passwordInputContainer}
+                                inputStyle={[styles.input, styles.passwordInput]}
+                                placeholder="Re-enter new password"
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                            />
+                        </View>
 
                         <TouchableOpacity
                             style={styles.saveButton}
@@ -483,8 +495,16 @@ const styles = StyleSheet.create({
         backgroundColor: "#fff",
         borderRadius: 16,
     },
+    compactModalPanel: {
+        flexGrow: 0,
+        flexShrink: 1,
+        alignSelf: "center",
+    },
     modalPanelContent: {
         padding: 20,
+    },
+    compactModalContent: {
+        flexGrow: 0,
     },
     modalHeader: {
         flexDirection: "row",
@@ -506,6 +526,24 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         marginBottom: 12,
         fontSize: 14,
+    },
+    passwordInputContainer: {
+        position: "relative",
+        height: 46,
+    },
+    passwordField: {
+        marginBottom: 12,
+    },
+    passwordLabel: {
+        color: "#666",
+        fontSize: 13,
+        fontWeight: "600",
+        marginBottom: 6,
+    },
+    passwordInput: {
+        height: 46,
+        marginBottom: 0,
+        paddingRight: 48,
     },
     saveButton: {
         backgroundColor: "#4caf50",

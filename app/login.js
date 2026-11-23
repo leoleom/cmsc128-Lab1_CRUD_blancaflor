@@ -1,17 +1,16 @@
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { loginUser } from "../backend/services/authService";
 import { showAlert } from "../frontend/utils/alerts";
+import PasswordInput from "../frontend/components/passwordInput";
 
 
 export default function Login() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isForgotPressed, setIsForgotPressed] = useState(false);
@@ -62,37 +61,20 @@ export default function Login() {
                     />
                 </View>
 
-                <View
-                    style={[
+                <PasswordInput
+                    containerStyle={[
                         styles.inputContainer,
                         styles.passwordInputContainer,
                         focusedField === "password" && styles.inputContainerFocused,
                     ]}
-                >
-                    <TextInput
-                        style={[styles.fieldInput, styles.passwordInput]}
-                        placeholder="Password"
-                        placeholderTextColor="#999"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry={!showPassword}
-                        underlineColorAndroid="transparent"
-                        onFocus={() => setFocusedField("password")}
-                        onBlur={() => setFocusedField(null)}
-                    />
-                    <TouchableOpacity
-                        style={styles.passwordVisibilityButton}
-                        onPress={() => setShowPassword((visible) => !visible)}
-                        accessibilityRole="button"
-                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                    >
-                        <Ionicons
-                            name={showPassword ? "eye-off-outline" : "eye-outline"}
-                            size={20}
-                            color="#555"
-                        />
-                    </TouchableOpacity>
-                </View>
+                    inputStyle={[styles.fieldInput, styles.passwordInput]}
+                    buttonStyle={styles.passwordVisibilityButton}
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setFocusedField("password")}
+                    onBlur={() => setFocusedField(null)}
+                />
 
                 <View style={styles.forgotPasswordRow}>
                     <Text
