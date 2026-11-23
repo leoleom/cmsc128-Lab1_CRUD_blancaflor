@@ -57,8 +57,15 @@ export default function TaskCard({ task, onToggleComplete }) {
     };
 
     return (
-        <View style={[styles.card, isDone && styles.cardDone]}>
-            <View style={[styles.priorityPanel, !isDone && { backgroundColor: priorityColor }]}>
+        <View
+            style={[
+                styles.card,
+                !isDone && { backgroundColor: priorityColor },
+                isDone && styles.cardDone,
+            ]}
+        >
+            <View style={[styles.mainSurface, isDone && styles.mainSurfaceDone]} />
+            <View style={styles.priorityPanel}>
                 <TouchableOpacity
                     style={styles.checkbox}
                     onPress={() => onToggleComplete(id)}
@@ -181,6 +188,19 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
     },
     cardDone: {
+        backgroundColor: "#f7f7f7",
+    },
+    mainSurface: {
+        position: "absolute",
+        left: 76,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "#f4f4f4",
+        borderTopRightRadius: 14.5,
+        borderBottomRightRadius: 14.5,
+    },
+    mainSurfaceDone: {
         backgroundColor: "#f7f7f7",
     },
     priorityPanel: {
