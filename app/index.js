@@ -11,6 +11,7 @@ import { useList } from "../frontend/context/ListContext";
 import { Ionicons } from "@expo/vector-icons";
 
 const UNDO_DURATION = 5000;
+const ARCHIVE_DELAY = 500;
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -31,7 +32,9 @@ export default function HomeScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [showListMenu, setShowListMenu] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState(null);
+  const [delayedArchiveIds, setDelayedArchiveIds] = useState(() => new Set());
   const deletionTimerRef = useRef(null);
+  const archiveTimersRef = useRef(new Map());
   const hasFocusedRef = useRef(false);
 
   const router = useRouter();
@@ -98,6 +101,8 @@ export default function HomeScreen() {
 
   useEffect(() => () => {
     if (deletionTimerRef.current) clearTimeout(deletionTimerRef.current);
+    archiveTimersRef.current.forEach(clearTimeout);
+    archiveTimersRef.current.clear();
   }, []);
 
   const handleUndoDelete = () => {
@@ -111,16 +116,56 @@ export default function HomeScreen() {
   };
 
   const handleToggleComplete = async (task) => {
+    const nextIsDone = !task.isDone;
+    setTasks(currentTasks =>
+      currentTasks.map(item =>
+        item.id === task.id ? { ...item, isDone: nextIsDone } : item
+      )
+    );
+
+    if (nextIsDone) {
+      setDelayedArchiveIds(currentIds => new Set(currentIds).add(task.id));
+    }
+
     try {
-      // save the change, then flip only this task on screen instead of reloading the list
       await toggleTaskComplete(task.id, task.isDone);
-      setTasks(currentTasks =>
-        currentTasks.map(item =>
-          item.id === task.id ? { ...item, isDone: !task.isDone } : item
-        )
-      );
+
+      const previousTimer = archiveTimersRef.current.get(task.id);
+      if (previousTimer) clearTimeout(previousTimer);
+
+      if (nextIsDone) {
+        const timer = setTimeout(() => {
+          setDelayedArchiveIds(currentIds => {
+            const nextIds = new Set(currentIds);
+            nextIds.delete(task.id);
+            return nextIds;
+          });
+          archiveTimersRef.current.delete(task.id);
+        }, ARCHIVE_DELAY);
+        archiveTimersRef.current.set(task.id, timer);
+      } else {
+        setDelayedArchiveIds(currentIds => {
+          const nextIds = new Set(currentIds);
+          nextIds.delete(task.id);
+          return nextIds;
+        });
+        archiveTimersRef.current.delete(task.id);
+      }
     } catch (error) {
       console.error("Failed to toggle task:", error);
+      const timer = archiveTimersRef.current.get(task.id);
+      if (timer) clearTimeout(timer);
+      archiveTimersRef.current.delete(task.id);
+      setDelayedArchiveIds(currentIds => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(task.id);
+        return nextIds;
+      });
+      setTasks(currentTasks =>
+        currentTasks.map(item =>
+          item.id === task.id ? { ...item, isDone: task.isDone } : item
+        )
+      );
       showAlert("Couldn't update task", "The task was not changed. Please try again.");
     }
   };
@@ -158,7 +203,7 @@ export default function HomeScreen() {
 
   const displayedTasks = visibleTasks.filter(task =>
     task.id !== pendingDeletion?.id &&
-    (page === "dueSoon" ? !task.isDone : task.isDone)
+    (page === "dueSoon" ? !task.isDone || delayedArchiveIds.has(task.id) : task.isDone)
   );
 
   const clearFilters = () => {

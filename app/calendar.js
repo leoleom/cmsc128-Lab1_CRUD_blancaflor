@@ -3,14 +3,23 @@ import { View, Text, StyleSheet, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
-import { getTasksByDate, getAllTaskDates, toggleTaskComplete } from "../backend/services/taskService";
+import { getTasksByDate, getTaskDatesForMonth, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
 import { showAlert } from "../frontend/utils/alerts";
 
+function formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 export default function CalendarScreen() {
-    const [selectedDate, setSelectedDate] = useState(
-        new Date().toISOString().split("T")[0]
-    );
+    const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()));
+    const [visibleMonth, setVisibleMonth] = useState(() => {
+        const now = new Date();
+        return { year: now.getFullYear(), month: now.getMonth() + 1 };
+    });
     const [tasks, setTasks] = useState([]);
     const [markedDates, setMarkedDates] = useState({});
     const [loading, setLoading] = useState(false);
@@ -48,21 +57,25 @@ export default function CalendarScreen() {
     };
 
     useEffect(() => {
+        let isCurrent = true;
         const loadMarkedDates = async () => {
             try {
-                const dates = await getAllTaskDates();
+                const dates = await getTaskDatesForMonth(visibleMonth.year, visibleMonth.month);
                 const marks = {};
                 dates.forEach((date) => {
                     marks[date] = { marked: true, dotColor: "#e67e22" };
                 });
-                setMarkedDates(marks);
+                if (isCurrent) setMarkedDates(marks);
             } catch (error) {
                 console.error("Failed to load marked dates:", error);
             }
         };
 
         loadMarkedDates();
-    }, []);
+        return () => {
+            isCurrent = false;
+        };
+    }, [visibleMonth]);
 
     const calendarMarkedDates = {
         ...markedDates,
@@ -88,6 +101,7 @@ export default function CalendarScreen() {
             <Calendar
                 current={selectedDate}
                 onDayPress={(day) => setSelectedDate(day.dateString)}
+                onMonthChange={({ year, month }) => setVisibleMonth({ year, month })}
                 markedDates={calendarMarkedDates}
                 renderHeader={monthNameHeader}
                 renderArrow={(direction) => (

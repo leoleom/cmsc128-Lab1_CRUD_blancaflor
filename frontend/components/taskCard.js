@@ -16,8 +16,6 @@ const PRIORITY_COLORS = {
     low: "#5B9AE1",
 };
 
-const DONE_COLOR = "#f7f7f7";
-
 export default function TaskCard({ task, onToggleComplete }) {
     const router = useRouter();
     const { user } = useAuth();
@@ -49,9 +47,9 @@ export default function TaskCard({ task, onToggleComplete }) {
         };
     }, [showDetails, teamId, userId, user?.uid]);
 
-    const backgroundColor = isDone
-        ? DONE_COLOR
-        : PRIORITY_COLORS[priority] || PRIORITY_COLORS.low;
+    const priorityKey = priority?.toLowerCase() || "low";
+    const priorityColor = PRIORITY_COLORS[priorityKey] || PRIORITY_COLORS.low;
+    const priorityLabel = priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1);
 
     const handleEdit = () => {
         setEditingTaskId(id);
@@ -59,13 +57,15 @@ export default function TaskCard({ task, onToggleComplete }) {
     };
 
     return (
-        <View style={[styles.card, { backgroundColor }]}>
-            <TouchableOpacity
-                style={styles.checkbox}
-                onPress={() => onToggleComplete(id)}
-            >
-                {isDone && <Ionicons name="checkmark" size={20} color="#000000" />}
-            </TouchableOpacity>
+        <View style={[styles.card, isDone && styles.cardDone]}>
+            <View style={[styles.priorityPanel, !isDone && { backgroundColor: priorityColor }]}>
+                <TouchableOpacity
+                    style={styles.checkbox}
+                    onPress={() => onToggleComplete(id)}
+                >
+                    {isDone && <Ionicons name="checkmark" size={20} color="#000000" />}
+                </TouchableOpacity>
+            </View>
 
             <View style={styles.textContainer}>
                 <Text
@@ -74,7 +74,16 @@ export default function TaskCard({ task, onToggleComplete }) {
                 >
                     {title || "Untitled task"}
                 </Text>
-                <Text style={styles.subtitle}>{formatDueDate(dueDate)}</Text>
+                <View style={styles.metaRow}>
+                    <Text style={styles.subtitle} numberOfLines={1}>
+                        {formatDueDate(dueDate)}
+                    </Text>
+                    <View style={[styles.priorityBadge, { borderColor: priorityColor }]}>
+                        <Text style={[styles.priorityLabel, { color: priorityColor }]}>
+                            {priorityLabel}
+                        </Text>
+                    </View>
+                </View>
                 {taskTags.length > 0 && (
                     <View style={styles.tagsContainer}>
                         {taskTags.map((tag, index) => (
@@ -159,22 +168,41 @@ export default function TaskCard({ task, onToggleComplete }) {
 
 const styles = StyleSheet.create({
     card: {
+        position: "relative",
         flexDirection: "row",
         alignItems: "center",
+        backgroundColor: "#f4f4f4",
         borderRadius: 16,
         padding: 20,
+        paddingLeft: 88,
+        paddingRight: 86,
         marginBottom: 12,
-        borderColor: "#000000",
-        borderWidth: 1,
+        borderColor: "#707070",
+        borderWidth: 1.5,
+    },
+    cardDone: {
+        backgroundColor: "#f7f7f7",
+    },
+    priorityPanel: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 76,
+        borderTopLeftRadius: 14.5,
+        borderBottomLeftRadius: 14.5,
+        borderRightWidth: 1.5,
+        borderRightColor: "#555",
+        justifyContent: "center",
+        alignItems: "center",
     },
     checkbox: {
-        width: 30,
-        height: 30,
-        borderRadius: 16,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         backgroundColor: "#d9d9d9",
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 12,
         borderColor: "#000000",
         borderWidth: 1,
     },
@@ -191,9 +219,27 @@ const styles = StyleSheet.create({
         textDecorationLine: "line-through",
     },
     subtitle: {
-        fontSize: 12,
+        fontSize: 10,
         color: "#444",
-        marginTop: 2,
+        flexShrink: 1,
+    },
+    metaRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexWrap: "nowrap",
+        gap: 4,
+        marginTop: 3,
+    },
+    priorityBadge: {
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        flexShrink: 0,
+    },
+    priorityLabel: {
+        fontSize: 9,
+        fontWeight: "600",
     },
     tagsContainer: {
         flexDirection: "row",

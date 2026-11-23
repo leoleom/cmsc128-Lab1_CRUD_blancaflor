@@ -124,19 +124,32 @@ export async function getAllTasks(teamId = null) {
     return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function getAllTaskDates(teamId = null) {
-    // nobody logged in means no dates
+function formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+export async function getTaskDatesForMonth(year, month, teamId = null) {
+    // month is 1-based, matching the value returned by react-native-calendars
     const uid = getCurrentUid();
     if (!uid) return [];
 
-    // read this list's tasks, then keep only their due dates as YYYY-MM-DD
-    const snapshot = await getDocs(query(collection(db, "tasks"), ...scopeFilters(uid, teamId)));
+    const startOfMonth = new Date(year, month - 1, 1);
+    const startOfNextMonth = new Date(year, month, 1);
+    const snapshot = await getDocs(query(
+        collection(db, "tasks"),
+        ...scopeFilters(uid, teamId),
+        where("dueDate", ">=", Timestamp.fromDate(startOfMonth)),
+        where("dueDate", "<", Timestamp.fromDate(startOfNextMonth))
+    ));
 
     return snapshot.docs
         .map((d) => {
             const dueDate = d.data().dueDate;
             if (!dueDate) return null;
-            return dueDate.toDate().toISOString().split("T")[0];
+            return formatLocalDate(dueDate.toDate());
         })
         .filter(Boolean);
 }
