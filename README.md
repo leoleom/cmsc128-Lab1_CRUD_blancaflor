@@ -4,7 +4,7 @@ A cross-platform task management app built for CMSC 128. Users create an account
 
 ## Tech stack
 
-- **Frontend/UI library:** React Native (React) with Expo SDK 57
+- **Frontend/UI library:** React Native (React) with Expo SDK 58
 - **Navigation:** Expo Router
 - **Backend/database:** Firebase client SDK and Cloud Firestore
 - **Authentication:** Firebase Authentication with email and password
@@ -41,9 +41,23 @@ The main overlap was in the task screens and task service. The integration kept 
 - Sort tasks by date, priority, or tag
 - Delete tasks with a temporary **Undo** action
 - View detailed task information
+- See task priority in the card's colored side panel and priority label
 - View task dates in the calendar
 - Create and manage collaborative teams, add members by email, and remove members
 - Create and manage tasks in either a personal list or a selected team list
+
+## Refactor and data-access notes
+
+The app has not been benchmarked, so it is not fully performance-optimized. The current structure separates Expo Router screens, shared UI/context, and Firebase operations in `backend/services/`. The Firebase client SDK is used directly; there is no separate HTTP server.
+
+The data model avoids copying user profiles into task documents: tasks store `userId` and optional `teamId`, while teams store `ownerId` and non-owner `memberIds`. Personal task queries are scoped by UID, team queries by team ID, and calendar queries by the visible month. Team lists load owner/member matches in parallel, member documents are fetched in groups, and team-task deletion uses batched writes. These choices reduce repeated reads and keep task records small; they do not replace Firestore Security Rules.
+
+For the current lab-scale use, the implementation is reasonably lightweight; larger task collections may need additional data-loading work:
+
+- The Home screen loads all tasks for the selected personal or team list. Calendar date markers query task records for only the visible month (Firestore still returns each matching document's fields). The Home read may need pagination if task collections grow.
+- Completing a task updates the checkbox immediately, saves to Firestore, and keeps the task visible in the active list for 500 ms after a successful save before it moves to Finished. If saving fails, the UI reverts.
+- Edit screens can only load a task selected from within the app; task IDs in URL query parameters are ignored. Browser session storage preserves an in-progress selection across refreshes. Firestore Security Rules still enforce access independently of these client-side checks.
+- Firestore composite indexes are versioned in `firestore.indexes.json`: `tasks(teamId, userId, dueDate)` supports personal date queries (`teamId == null`), and `tasks(teamId, dueDate)` supports team date queries. The older `tasks(userId, dueDate)` index is omitted because current personal queries also filter by `teamId`. Security Rules are versioned in `firestore.rules`; both files are deployed with the Firebase CLI. Client-side checks are not a security boundary. If another query needs an index, add Firestore's suggested definition to `firestore.indexes.json` and wait for it to finish building.
 
 ## Prerequisites
 
@@ -79,9 +93,19 @@ Install the following before running the project:
    EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
    ```
 
-4. In the Firebase console, enable **Authentication > Sign-in method > Email/Password** and create a **Cloud Firestore** database. The app creates documents in the `users`, `tasks`, and `teams` collections as users sign up and use the app; no seed data or database migration is required.
+4. In the Firebase console, enable **Authentication > Sign-in method > Email/Password** and create a **Cloud Firestore** database. The app creates documents in the `users`, `tasks`, and `teams` collections as users sign up and use the app.
 
-5. Configure and deploy Firestore Security Rules before using real user data. Rules should restrict personal task access to its `userId` owner and shared task/team access to team members, and restrict team administration to the team owner as appropriate. This repository does not include deployable Firestore rules: client-side ownership checks and query filters are useful application behavior, but are not a security boundary.
+5. Review the checked-in `firestore.rules`. Team owners are stored in `ownerId`; `memberIds` contains only non-owner members. Team tasks are readable and editable only by current team owners/members. Deletion is additionally limited to the task creator or team owner. Removing a member revokes their access even to tasks they created. Personal tasks remain owner-scoped, and updates cannot change `userId` or `teamId`.
+
+   Sign in to Firebase CLI and deploy the checked-in rules and indexes to the intended project:
+
+   ```bash
+   npx --yes firebase-tools@latest login
+   npx --yes firebase-tools@latest deploy --only firestore --project YOUR_FIREBASE_PROJECT_ID
+   ```
+
+   Deployment changes the live project's access policy and index configuration. Verify the project ID and compare `firestore.indexes.json` with any other indexes the live project still needs before deploying. Test the rules before deployment. The app's invitation/member-name lookup uses the `users` collection, and the checked-in rules allow any signed-in user to read that collection; this exposes stored emails and display names to all signed-in users.
+
 
 ## Run the app
 
@@ -101,9 +125,46 @@ npx expo start --ios
 
 For Android or iOS, the corresponding emulator or development device must be available.
 
+## Android APK deployment with Expo EAS
+
+The Android application ID is `com.rykonnen.Todone`. The `preview` profile in `eas.json` is configured to create an internally distributed APK that can be installed directly on an Android device.
+
+EAS Build runs on Expo's servers and uploads a copy of the project source. Use it only if you are comfortable with that upload. The local `.env` file is gitignored and is not included in the EAS build archive; configure the Firebase values in your Expo project's **Environment variables** page for the `preview` environment. Add these six names with the matching values from your Firebase web app configuration:
+
+```text
+EXPO_PUBLIC_FIREBASE_API_KEY
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+EXPO_PUBLIC_FIREBASE_PROJECT_ID
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+EXPO_PUBLIC_FIREBASE_APP_ID
+```
+
+These `EXPO_PUBLIC_` values are included in the client app bundle; they are configuration, not server-side secrets. Use Expo's **Sensitive** visibility to hide values from logs. Do not put passwords, service-account keys, or other server secrets in client environment variables.
+
+From the project root:
+
+1. Sign in to your Expo account and connect this app to an EAS project:
+
+   ```bash
+   npx eas-cli@latest build:configure
+   ```
+
+   Follow the prompts to create or link the EAS project.
+
+2. After setting the `preview` environment variables, start the cloud APK build:
+
+   ```bash
+   npx eas-cli@latest build --platform android --profile preview
+   ```
+
+3. When the build completes, open its Expo build page, download the APK, and transfer it to the tablet. Android may ask you to allow installation from the browser or file app used to open it.
+
+The current Android build is available in this [Google Drive folder](https://drive.google.com/drive/folders/1n36tyOawBMwVpihdMDn-rs7Q5STO72R0?usp=sharing). Confirm the instructor has access to the folder. Install and test the APK on a second Android device before the defense. Deploy Firestore rules separately and only after reviewing their effect on the live Firebase project.
+
 ## Authentication and sessions
 
-Authentication is provided by Firebase Authentication's email/password provider. Sign-up creates a Firebase user and sets the user's display name. Login signs in with the email and password. The app listens for Firebase auth-state changes in `AuthContext`; the root layout waits for the initial auth check and then redirects signed-out users to `/login` and signed-in users away from the public login, sign-up, and password-reset screens.
+Authentication is provided by Firebase Authentication's email/password provider. Sign-up creates a Firebase user and sets the user's display name. The app requires passwords to be at least 8 characters at sign-up and when changing a password in Profile; configure Firebase Authentication's password policy to enforce the same minimum for password-reset flows. Login signs in with the email and password. The app listens for Firebase auth-state changes in `AuthContext`; the root layout waits for the initial auth check and then redirects signed-out users to `/login` and signed-in users away from the public login, sign-up, and password-reset screens.
 
 On native platforms, Firebase Auth persistence is initialized with React Native AsyncStorage, so the Firebase session can be restored after restarting the app. On web, the app uses Firebase's standard web Auth initialization. Logging out calls Firebase `signOut` and ends the current session.
 
@@ -131,10 +192,12 @@ The app uses three top-level Firestore collections. Firebase Authentication is t
   {
     name: "Project team",
     ownerId: "firebase-auth-uid",
-    memberIds: ["firebase-auth-uid", "another-auth-uid"],
+    memberIds: ["another-auth-uid"],
     createdAt: Timestamp
   }
   ```
+
+  `memberIds` contains only non-owner members. The owner is identified separately by `ownerId` and receives team access through that field.
 
 - `tasks/{taskId}` stores each task. A personal task has `teamId: null`; a shared task has the ID of its team. `userId` identifies the task creator in either case.
 
@@ -156,7 +219,7 @@ Tasks are not nested under users or teams; `userId` and `teamId` link each task 
 
 ## Operations and ownership checks
 
-The app uses Firebase client operations rather than a custom HTTP API. The examples below are functions from [`backend/services/taskService.js`](./backend/services/taskService.js) and [`backend/services/teamService.js`](./backend/services/teamService.js):
+The app accesses Firebase directly through the client SDK rather than a custom HTTP API. It does not expose REST endpoint URLs; the examples below show database operations provided by functions in [`backend/services/taskService.js`](./backend/services/taskService.js) and [`backend/services/teamService.js`](./backend/services/teamService.js).
 
 ```js
 // Personal task: createTask reads auth.currentUser.uid and stores it as userId.
@@ -174,9 +237,9 @@ await addMemberByEmail(teamId, email);
 await deleteTeam(teamId);
 ```
 
-For a personal task, `getTaskById` checks `task.userId` against the current UID. For a team task, it checks that the team exists and that the UID appears in `team.memberIds`. Team member addition and team deletion check `ownerId`. Task list queries are scoped by user ID for personal tasks or by team ID for shared tasks.
+For a personal task, `getTaskById` checks `task.userId` against the current UID. For a team task, it checks that the team exists and that the UID appears in `team.memberIds` or matches `ownerId`. `getMyTeams` queries both fields and merges the results. Team member addition and team deletion check `ownerId`. Task list queries are scoped by user ID for personal tasks or by team ID for shared tasks. Firestore Rules repeat these access checks on the server; a former team member loses access to shared tasks even if they originally created them.
 
-These checks run in the client and do not replace Firestore Security Rules. In particular, task update/delete functions issue Firestore writes by document ID; the deployed rules must authorize those writes (and team membership/owner access) using the authenticated user and stored document data.
+The client applies ownership checks for clearer application behavior; the rules in `firestore.rules` enforce access at Firestore after they are deployed. Updating this file does not change the live Firebase project until an authorized deploy is run.
 
 ## Task CRUD
 
@@ -242,51 +305,32 @@ The edit screen first returns to the task list and displays an Undo snackbar. If
 
 ## Screenshots
 
-#### Login Screen
+### Login
+![Login screen](assets/screenshots-app/login.jpg)
 
-![Login screenshot](assets/screenshots-app/login.jpg)
+### Sign Up
+![Sign-up screen](assets/screenshots-app/signup.jpg)
 
-#### Sign Up Screen
+### Home Task List
+![Home task list](assets/screenshots-app/homescreen.jpg)
 
-![Sign Up screenshot](assets/screenshots-app/signup.jpg)
+### Profile
+![Profile screen](assets/screenshots-app/profile.jpg)
 
-#### Forgot Password Screen
+### Teams
+![Teams management screen](assets/screenshots-app/teams.jpg)
 
-![Forgot Password screenshot](assets/screenshots-app/resetpassword.jpg)
+### Team Task List
+![Tasks in a team list](assets/screenshots-app/teamscreen.jpg)
 
-#### Home Screen
+### Add Task
+![Add task screen](assets/screenshots-app/add-task.jpg)
 
-![Task list screenshot](assets/screenshots-app/homescreen.jpg)
-
-#### Profile Screen
-![Profile screenshot](assets/screenshots-app/profile.jpg)
-
-### Teams Screen
-![Teams screenshot](assets/screenshots-app/teams.jpg)
-
-
-#### Add Task Screen
-![Add task screenshot](assets/screenshots-app/add.jpg)
-
-#### Edit Task Screen
-
-![Edit task screenshot](assets/screenshots-app/edit.jpg)
-
-### Switch Team Screen
-![Switch Team screenshot](assets/screenshots-app/switchteams.jpg)
-
-### Filter and Sort Controls
-
-![Filter and sort screenshot](assets/screenshots-app/filter.jpg)
+### Filter and Sort
+![Filter and sort controls](assets/screenshots-app/filter.jpg)
 
 ### Calendar
-
-![Calendar screenshot](assets/screenshots-app/calendar.jpg)
-
-### Task Details
-
-![Task details screenshot](assets/screenshots-app/details.jpg)
+![Calendar with tasks](assets/screenshots-app/calendar.jpg)
 
 ### Finished Tasks
-
-![Finished tasks screenshot](assets/screenshots-app/archive.jpg)
+![Finished tasks](assets/screenshots-app/archive.jpg)
