@@ -1,23 +1,27 @@
-import { View, TouchableOpacity, StyleSheet, Animated } from "react-native";
+import { View, TouchableOpacity, StyleSheet } from "react-native"; 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 
 export default function BottomNav() {
     const router = useRouter();
     const pathname = usePathname();
+    const isAddTaskPage = pathname === "/addTask";
 
     return (
         <View style={styles.container}>
-            <TouchableOpacity style={styles.sideButton} onPress={() => router.push("/")}>
+            <TouchableOpacity style={[styles.sideButton, styles.homeButton]} onPress={() => router.push("/")}>
                 {pathname === "/" && <View style={styles.highlightCircle} />}
                 <Ionicons name="home" size={24} color={"#333"} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.addButton} onPress={() => router.push("/addTask")}>
-                <Ionicons name="add" size={50} color="#fff" />
+            <TouchableOpacity
+                style={[styles.addButton, isAddTaskPage && styles.addButtonActive]}
+                onPress={() => router.push("/addTask")}
+            >
+                <Ionicons name="add" size={42} color="#fff" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.sideButton} onPress={() => router.push("/calendar")}>
+            <TouchableOpacity style={[styles.sideButton, styles.calendarButton]} onPress={() => router.push("/calendar")}>
                 {pathname === "/calendar" && <View style={styles.highlightCircle} />}
                 <Ionicons name="calendar" size={24} color={"#333"} />
             </TouchableOpacity>
@@ -29,15 +33,15 @@ const styles = StyleSheet.create({
     container: {
         position: "absolute",
         bottom: 40,
-        left: 20,
-        right: 20,
-        height: 64,
-        backgroundColor: "#ddd",
-        borderRadius: 32,
+        left: 56,
+        right: 56,
+        height: 60,
+        backgroundColor: "rgba(221, 221, 221, 0.9)",
+        borderRadius: 30,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
     },
     sideButton: {
         width: 44,
@@ -46,14 +50,23 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
+    homeButton: {
+        transform: [{ translateX: 8 }],
+    },
+    calendarButton: {
+        transform: [{ translateX: -8 }],
+    },
     addButton: {
-        width: 90,
-        height: 90,
+        width: 76,
+        height: 76,
         borderRadius: 50,
         backgroundColor: "#e67e22",
         justifyContent: "center",
         alignItems: "center",
         marginTop: 0,
+    },
+    addButtonActive: {
+        backgroundColor: "#9e9e9e",
     },
     highlightCircle: {
         position: "absolute",   // sits behind the icon

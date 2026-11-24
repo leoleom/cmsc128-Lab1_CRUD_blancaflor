@@ -1,7 +1,14 @@
-import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
+import { useState, useEffect } from "react";
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { formatDueDate, formatDateTime } from "../utils/formatDate";
+import { normalizeTags } from "../utils/tags";
+import { useAuth } from "../context/AuthContext";
+import { useList, storeEditingTaskId } from "../context/ListContext";
+import { getUserDisplayName } from "../../backend/services/userService";
+import { showAlert } from "../utils/alerts";
+
 
 const PRIORITY_COLORS = {
     urgent: "#C95656",
@@ -10,67 +17,123 @@ const PRIORITY_COLORS = {
     low: "#5B9AE1",
 };
 
-const DONE_COLOR = "#f7f7f7";
-
-function formatDueDate(dueDate) {
-    if (!dueDate) return "";
-    // Firestore Timestamp to JS Date
-    const date = dueDate.toDate ? dueDate.toDate() : new Date(dueDate);
-
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yr = String(date.getFullYear());
-    const hh = String(date.getHours()).padStart(2, "0");
-    const min = String(date.getMinutes()).padStart(2, "0");
-
-    return `${mm}/${dd}/${yr}   |   ${hh}:${min}`;
-}
-
-function formatDateTime(value) {
-    if (!value) return "Not available";
-    const date = value.toDate ? value.toDate() : new Date(value);
-    if (Number.isNaN(date.getTime())) return "Not available";
-    return date.toLocaleString();
-}
-
-function normalizeTags(tags) {
-    if (Array.isArray(tags)) return tags.map((tag) => tag.trim()).filter(Boolean);
-    return typeof tags === "string"
-        ? tags.split(",").map((tag) => tag.trim()).filter(Boolean)
-        : [];
-}
-
-export default function TaskCard({ task, onToggleComplete, onArchive }) {
+export default function TaskCard({ task, onToggleComplete }) {
     const router = useRouter();
-    const { id, title, details, dueDate, createdAt, isDone, priority, tags } = task;
+    const { user } = useAuth();
+    const { setEditingTaskId } = useList();
+    const { id, userId, teamId, title, details, dueDate, createdAt, isDone, priority, tags } = task;
     const taskTags = normalizeTags(tags);
     const [showDetails, setShowDetails] = useState(false);
+    const [ownerName, setOwnerName] = useState("");
+    const [isUpdating, setIsUpdating] = useState(false);
 
-    const backgroundColor = isDone
-        ? DONE_COLOR
-        : PRIORITY_COLORS[priority] || PRIORITY_COLORS.low;
+    useEffect(() => {
+        // Only look up the owner for team tasks, and only when the window is open
+        if (!showDetails || !teamId || !userId) return;
+
+        // Your own tasks say "You", so no lookup is needed
+        if (userId === user?.uid) {
+            setOwnerName("You");
+            return;
+        }
+
+        // Otherwise read the owner's name from the users collection
+        let cancelled = false;
+        getUserDisplayName(userId).then((name) => {
+            if (!cancelled) setOwnerName(name);
+        }).catch(() => {
+            if (!cancelled) setOwnerName("Name unavailable");
+        });
+
+        // Ignore the result if the window closes before it arrives
+        return () => {
+            cancelled = true;
+        };
+    }, [showDetails, teamId, userId, user?.uid]);
+
+    const priorityKey = priority?.toLowerCase() || "low";
+    const priorityColor = PRIORITY_COLORS[priorityKey] || PRIORITY_COLORS.low;
+    const priorityLabel = priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1);
 
     const handleEdit = () => {
-        router.push({ pathname: "/editTask", params: { id } });
+        setEditingTaskId(id);
+        try {
+            storeEditingTaskId(id);
+        } catch {
+            showAlert("Edit selection not saved", "The task will open, but refreshing this page may lose the selection.");
+        }
+        router.push("/editTask");
+    };
+
+    const handleToggleComplete = async () => {
+        if (isUpdating) return;
+        setIsUpdating(true);
+        try {
+            await onToggleComplete(id);
+        } finally {
+            setIsUpdating(false);
+        }
     };
 
     return (
-        <View style={[styles.card, { backgroundColor }]}>
-            <TouchableOpacity
-                style={styles.checkbox}
-                onPress={() => onToggleComplete(id)}
-            >
-                {isDone && <Ionicons name="checkmark" size={20} color="#000000" />}
-            </TouchableOpacity>
-
-            <View style={styles.textContainer}>
-                <Text
-                    style={[styles.title, isDone && styles.titleDone]}
-                    numberOfLines={1}
+        <View
+            style={[
+                styles.card,
+                !isDone && { backgroundColor: priorityColor },
+                isDone && styles.cardDone,
+            ]}
+        >
+            <View style={[styles.mainSurface, isDone && styles.mainSurfaceDone]} />
+            <View style={styles.priorityPanel}>
+                <TouchableOpacity
+                    style={[styles.checkbox, isUpdating && styles.disabledCheckbox]}
+                    onPress={handleToggleComplete}
+                    disabled={isUpdating}
+                    accessibilityRole="button"
+                    accessibilityLabel={isUpdating ? "Updating task" : isDone ? "Mark task incomplete" : "Mark task complete"}
                 >
-                    {title || "Untitled task"}
-                </Text>
-                <Text style={styles.subtitle}>{formatDueDate(dueDate)}</Text>
+                    {isUpdating ? (
+                        <ActivityIndicator size="small" color="#333" />
+                    ) : isDone ? (
+                        <Ionicons name="checkmark" size={20} color="#000000" />
+                    ) : null}
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.cardContent}>
+                <View style={styles.cardHeader}>
+                    <View style={styles.textContainer}>
+                        <Text
+                            style={[styles.title, isDone && styles.titleDone]}
+                            numberOfLines={1}
+                        >
+                            {title || "Untitled task"}
+                        </Text>
+                        <View style={styles.metaRow}>
+                            <Text style={styles.subtitle} numberOfLines={1}>
+                                {formatDueDate(dueDate)}
+                            </Text>
+                            <View style={[styles.priorityBadge, { borderColor: priorityColor }]}>
+                                <Text style={[styles.priorityLabel, { color: priorityColor }]}>
+                                    {priorityLabel}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.actions}>
+                        <TouchableOpacity onPress={() => setShowDetails(true)} style={styles.iconButton}>
+                            <Ionicons
+                                name="information-circle-outline"
+                                size={25}
+                                color="#000000"
+                                style={styles.infoIcon}
+                            />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
+                            <Ionicons name="create-outline" size={25} color="#000000" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
                 {taskTags.length > 0 && (
                     <View style={styles.tagsContainer}>
                         {taskTags.map((tag, index) => (
@@ -80,20 +143,6 @@ export default function TaskCard({ task, onToggleComplete, onArchive }) {
                         ))}
                     </View>
                 )}
-            </View>
-
-            <View style={styles.actions}>
-                <TouchableOpacity onPress={() => setShowDetails(true)} style={styles.iconButton}>
-                    <Ionicons
-                        name="information-circle-outline"
-                        size={25}
-                        color="#000000"
-                        style={styles.infoIcon}
-                    />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
-                    <Ionicons name="create-outline" size={25} color="#000000" />
-                </TouchableOpacity>
             </View>
 
             <Modal
@@ -117,6 +166,12 @@ export default function TaskCard({ task, onToggleComplete, onArchive }) {
                             </Text>
                             <View style={styles.metadata}>
                                 <Text style={styles.detailsLabel}>Task information</Text>
+                                {teamId ? (
+                                    <Text style={styles.metadataText}>
+                                        <Text style={styles.metadataLabel}>Owner: </Text>
+                                        {ownerName || "Loading..."}
+                                    </Text>
+                                ) : null}
                                 <Text style={styles.metadataText}>
                                     <Text style={styles.metadataLabel}>Tags: </Text>
                                     {taskTags.length > 0 ? taskTags.map((tag) => `#${tag}`).join(", ") : "None"}
@@ -146,29 +201,73 @@ export default function TaskCard({ task, onToggleComplete, onArchive }) {
     );
 }
 
+
 const styles = StyleSheet.create({
     card: {
-        flexDirection: "row",
-        alignItems: "center",
+        position: "relative",
+        backgroundColor: "#f4f4f4",
         borderRadius: 16,
         padding: 20,
+        paddingLeft: 88,
+        paddingRight: 16,
         marginBottom: 12,
-        borderColor: "#000000",
-        borderWidth: 1,
+        borderColor: "#707070",
+        borderWidth: 1.5,
+    },
+    cardDone: {
+        backgroundColor: "#f7f7f7",
+    },
+    mainSurface: {
+        position: "absolute",
+        left: 76,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "#f4f4f4",
+        borderTopRightRadius: 14.5,
+        borderBottomRightRadius: 14.5,
+    },
+    mainSurfaceDone: {
+        backgroundColor: "#f7f7f7",
+    },
+    priorityPanel: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 76,
+        borderTopLeftRadius: 14.5,
+        borderBottomLeftRadius: 14.5,
+        borderRightWidth: 1.5,
+        borderRightColor: "#555",
+        justifyContent: "center",
+        alignItems: "center",
     },
     checkbox: {
-        width: 30,
-        height: 30,
-        borderRadius: 16,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         backgroundColor: "#d9d9d9",
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 12,
         borderColor: "#000000",
         borderWidth: 1,
     },
+    disabledCheckbox: {
+        opacity: 0.6,
+    },
+    cardContent: {
+        flex: 1,
+        minWidth: 0,
+    },
+    cardHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
     textContainer: {
         flex: 1,
+        minWidth: 0,
     },
     title: {
         fontSize: 16,
@@ -180,16 +279,33 @@ const styles = StyleSheet.create({
         textDecorationLine: "line-through",
     },
     subtitle: {
-        fontSize: 12,
+        fontSize: 10,
         color: "#444",
-        marginTop: 2,
+        flexShrink: 1,
+    },
+    metaRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexWrap: "nowrap",
+        gap: 4,
+        marginTop: 3,
+    },
+    priorityBadge: {
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        flexShrink: 0,
+    },
+    priorityLabel: {
+        fontSize: 9,
+        fontWeight: "600",
     },
     tagsContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
         gap: 6,
         marginTop: 8,
-        paddingRight: 28,
     },
     tag: {
         backgroundColor: "#dedddd",
@@ -202,14 +318,12 @@ const styles = StyleSheet.create({
         color: "#333",
     },
     actions: {
-        position: "absolute",
-        top: 10,
-        right: 10,
         flexDirection: "row",
         flexWrap: "nowrap",
         alignItems: "center",
         justifyContent: "flex-end",
         width: 76,
+        flexShrink: 0,
     },
     iconButton: {
         width: 36,

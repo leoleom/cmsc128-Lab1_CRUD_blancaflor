@@ -1,86 +1,110 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useRouter } from "expo-router";
+import { deleteTask, getAllTasks, toggleTaskComplete } from "../backend/services/taskService";
 import TaskCard from "../frontend/components/taskCard";
-import { deleteTask, getAllTasks, getTaskById, toggleTaskComplete } from "../backend/services/taskService";
+import { showAlert } from "../frontend/utils/alerts";
+import { normalizeTags } from "../frontend/utils/tags";
+import { useAuth } from "../frontend/context/AuthContext";
+import { useList } from "../frontend/context/ListContext";
+import { Ionicons } from "@expo/vector-icons";
 
 const UNDO_DURATION = 5000;
-
-function normalizeTags(tags) {
-  if (Array.isArray(tags)) return tags.map(tag => tag.trim()).filter(Boolean);
-  return typeof tags === "string"
-    ? tags.split(",").map(tag => tag.trim()).filter(Boolean)
-    : [];
-}
+const ARCHIVE_DELAY = 500;
 
 export default function HomeScreen() {
+  const { user } = useAuth();
+  const {
+    activeTeamId,
+    setActiveTeamId,
+    teams,
+    teamsError,
+    refreshTeams,
+    pendingDeletionTask,
+    setPendingDeletionTask,
+  } = useList();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [taskLoadError, setTaskLoadError] = useState(false);
   const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
   const [sortBy, setSortBy] = useState("createdAt");
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedPriority, setSelectedPriority] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showListMenu, setShowListMenu] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState(null);
+  const [delayedArchiveIds, setDelayedArchiveIds] = useState(() => new Set());
   const deletionTimerRef = useRef(null);
-  const handledDeleteIdRef = useRef(null);
-  const { pendingDeleteId, createdTaskId } = useLocalSearchParams();
+  const archiveTimersRef = useRef(new Map());
+  const hasFocusedRef = useRef(false);
+
+  const router = useRouter();
 
   const reloadTasks = useCallback(async () => {
     setLoading(true);
+    setTaskLoadError(false);
     try {
-      const tasks = await getAllTasks();
-      setTasks(tasks);
-    } catch (error) {
-      console.error("Failed to load tasks:", error);
-      setTasks([]);
+      setTasks(await getAllTasks(activeTeamId));
+    } catch {
+      setTaskLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTeamId]);
 
-  useFocusEffect(useCallback(() => {
-    reloadTasks();
-  }, [reloadTasks, createdTaskId]));
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-  useEffect(() => {
-    if (!pendingDeleteId || handledDeleteIdRef.current === pendingDeleteId) return;
+      const loadData = async () => {
+        const shouldRefreshTeams = hasFocusedRef.current;
+        hasFocusedRef.current = true;
+        if (shouldRefreshTeams) {
+          await refreshTeams();
+        }
 
-    handledDeleteIdRef.current = pendingDeleteId;
-    let cancelled = false;
+        if (!cancelled) {
+          await reloadTasks();
+        }
+      };
 
-    const prepareDeletion = async () => {
-      try {
-        const task = await getTaskById(pendingDeleteId);
-        if (cancelled || !task) return;
+      loadData();
 
-        setPendingDeletion(task);
-        setTasks(currentTasks => currentTasks.filter(item => item.id !== task.id));
-        deletionTimerRef.current = setTimeout(async () => {
-          try {
-            await deleteTask(task.id);
-            setPendingDeletion(null);
-            await reloadTasks();
-          } catch (error) {
-            console.error("Failed to finalize task deletion:", error);
-            setPendingDeletion(task);
-          }
-        }, UNDO_DURATION);
-      } catch (error) {
-        console.error("Failed to prepare task deletion:", error);
-      }
-    };
+      return () => {
+        cancelled = true;
+      };
+    }, [refreshTeams, reloadTasks])
+  );
 
-    prepareDeletion();
+  useFocusEffect(
+    useCallback(() => {
+      if (!pendingDeletionTask) return;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingDeleteId, reloadTasks]);
+      setPendingDeletionTask(null);
+      setPendingDeletion(pendingDeletionTask);
+      setTasks(currentTasks => currentTasks.filter(item => item.id !== pendingDeletionTask.id));
+      deletionTimerRef.current = setTimeout(async () => {
+        try {
+          await deleteTask(pendingDeletionTask.id);
+          setPendingDeletion(null);
+          await reloadTasks();
+        } catch (error) {
+          setPendingDeletion(null);
+          await reloadTasks();
+          showAlert(
+            "Task not deleted",
+            "This task was not deleted. Only its creator or the team owner can delete a team task. If that's you, please try again."
+          );
+        }
+      }, UNDO_DURATION);
+    }, [pendingDeletionTask, reloadTasks, setPendingDeletionTask])
+  );
 
   useEffect(() => () => {
     if (deletionTimerRef.current) clearTimeout(deletionTimerRef.current);
+    archiveTimersRef.current.forEach(clearTimeout);
+    archiveTimersRef.current.clear();
   }, []);
 
   const handleUndoDelete = () => {
@@ -94,11 +118,56 @@ export default function HomeScreen() {
   };
 
   const handleToggleComplete = async (task) => {
+    const nextIsDone = !task.isDone;
+    setTasks(currentTasks =>
+      currentTasks.map(item =>
+        item.id === task.id ? { ...item, isDone: nextIsDone } : item
+      )
+    );
+
+    if (nextIsDone) {
+      setDelayedArchiveIds(currentIds => new Set(currentIds).add(task.id));
+    }
+
     try {
       await toggleTaskComplete(task.id, task.isDone);
-      await reloadTasks();
+
+      const previousTimer = archiveTimersRef.current.get(task.id);
+      if (previousTimer) clearTimeout(previousTimer);
+
+      if (nextIsDone) {
+        const timer = setTimeout(() => {
+          setDelayedArchiveIds(currentIds => {
+            const nextIds = new Set(currentIds);
+            nextIds.delete(task.id);
+            return nextIds;
+          });
+          archiveTimersRef.current.delete(task.id);
+        }, ARCHIVE_DELAY);
+        archiveTimersRef.current.set(task.id, timer);
+      } else {
+        setDelayedArchiveIds(currentIds => {
+          const nextIds = new Set(currentIds);
+          nextIds.delete(task.id);
+          return nextIds;
+        });
+        archiveTimersRef.current.delete(task.id);
+      }
     } catch (error) {
-      console.error("Failed to toggle task:", error);
+      const timer = archiveTimersRef.current.get(task.id);
+      if (timer) clearTimeout(timer);
+      archiveTimersRef.current.delete(task.id);
+      setDelayedArchiveIds(currentIds => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(task.id);
+        return nextIds;
+      });
+      setTasks(currentTasks =>
+        currentTasks.map(item =>
+          item.id === task.id ? { ...item, isDone: task.isDone } : item
+        )
+      );
+      showAlert("Couldn't update task", "The task was not changed. Please try again.");
     }
   };
 
@@ -135,8 +204,9 @@ export default function HomeScreen() {
 
   const displayedTasks = visibleTasks.filter(task =>
     task.id !== pendingDeletion?.id &&
-    (page === "dueSoon" ? !task.isDone : task.isDone)
+    (page === "dueSoon" ? !task.isDone || delayedArchiveIds.has(task.id) : task.isDone)
   );
+
   const clearFilters = () => {
     setSelectedTags([]);
     setSelectedPriority("");
@@ -150,10 +220,25 @@ export default function HomeScreen() {
     );
   };
 
+  const activeListName = teams.find((team) => team.id === activeTeamId)?.name || "Personal";
+
+  const selectList = (teamId) => {
+    setActiveTeamId(teamId);
+    clearFilters(); // tags from the previous list would hide tasks in the new one
+    setShowListMenu(false);
+  };
+
   const renderTaskList = () => (
     <View style={styles.taskListContainer}>
       {loading ? (
         <Text style={styles.emptyText}>Loading...</Text>
+      ) : taskLoadError ? (
+        <View style={styles.loadError}>
+          <Text style={styles.errorText}>Couldn't load tasks. Check your connection and try again.</Text>
+          <TouchableOpacity onPress={reloadTasks}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : displayedTasks.length === 0 ? (
         <Text style={styles.emptyText}>
           {page === "dueSoon" ? "No tasks due today" : "No finished tasks yet"}
@@ -174,70 +259,60 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <View style={styles.content}>
 
       <View style={styles.header}>
         <Ionicons name="person-circle-outline" size={54} color="#333" />
-        <Text style={styles.greeting}>Hello, XXXX!</Text>
+        <Text style={styles.greeting} numberOfLines={1}>
+          Hello, {user?.displayName || user?.email || "there"}!
+        </Text>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/profile")}>
+          <Ionicons name="settings-outline" size={20} color="#333" />
+        </TouchableOpacity>
       </View>
 
-      {page === "dueSoon" ? (
-        <>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>DUE SOON:</Text>
-
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setShowFilters(true)}
-              >
-                <Ionicons name="options-outline" size={20} color="#333" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
-              >
-                <Ionicons
-                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
-                  size={20}
-                  color="#333"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {renderTaskList()}
-        </>
-      ) : (
-        <>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>FINISHED TASKS:</Text>
-
-            <View style={styles.headerButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setShowFilters(true)}
-              >
-                <Ionicons name="options-outline" size={20} color="#333" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
-              >
-                <Ionicons
-                  name={page === "dueSoon" ? "archive-outline" : "time-outline"}
-                  size={20}
-                  color="#333"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {renderTaskList()}
-        </>
+      <TouchableOpacity
+        style={styles.listSelector}
+        onPress={() => setShowListMenu(true)}
+      >
+        <Ionicons name={activeTeamId ? "people" : "person"} size={18} color="#333" />
+        <Text style={styles.listSelectorText} numberOfLines={1}>{activeListName}</Text>
+        <Ionicons name="chevron-down" size={18} color="#333" />
+      </TouchableOpacity>
+      {teamsError && (
+        <TouchableOpacity style={styles.teamLoadError} onPress={refreshTeams}>
+          <Text style={styles.errorText}>Couldn't refresh teams. Tap to retry.</Text>
+        </TouchableOpacity>
       )}
+
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>
+          {page === "dueSoon" ? "DUE SOON:" : "FINISHED TASKS:"}
+        </Text>
+
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name="options-outline" size={20} color="#333" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setPage(page === "dueSoon" ? "finished" : "dueSoon")}
+          >
+            <Ionicons
+              name={page === "dueSoon" ? "archive-outline" : "time-outline"}
+              size={20}
+              color="#333"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {renderTaskList()}
 
       {pendingDeletion && (
         <View style={styles.snackbar}>
@@ -320,7 +395,57 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+
+      <Modal visible={showListMenu} transparent animationType="fade" onRequestClose={() => setShowListMenu(false)}>
+        <TouchableOpacity
+          style={styles.listMenuBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowListMenu(false)}
+        >
+          <View style={styles.listMenuPanel}>
+            <Text style={styles.listMenuTitle}>Switch Team</Text>
+
+            <ScrollView>
+              {[{ id: null, name: "Personal" }, ...teams].map((list) => {
+                const isActive = activeTeamId === list.id;
+                return (
+                  <TouchableOpacity
+                    key={list.id ?? "personal"}
+                    style={[styles.listMenuItem, isActive && styles.listMenuItemActive]}
+                    onPress={() => selectList(list.id)}
+                  >
+                    <Ionicons
+                      name={list.id ? "people-outline" : "person-outline"}
+                      size={20}
+                      color={isActive ? "#fff" : "#333"}
+                    />
+                    <Text
+                      style={isActive ? styles.listMenuItemTextActive : styles.listMenuItemText}
+                      numberOfLines={1}
+                    >
+                      {list.name}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={20} color="#fff" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.manageTeamsButton}
+              onPress={() => {
+                setShowListMenu(false);
+                router.push("/teams");
+              }}
+            >
+              <Text style={styles.manageTeamsText}>Manage teams</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -328,24 +453,98 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingTop: 60,
   },
-  topBar: {
-    alignItems: "flex-end",
-    paddingHorizontal: 20,
+  content: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 960,
+    alignSelf: "center",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 12,
     marginBottom: 25,
     gap: 10,
   },
   greeting: {
+    flex: 1,
     fontSize: 32,
     fontWeight: "bold",
     color: "#000000",
+  },
+  listSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    maxWidth: "80%",
+  },
+  listSelectorText: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+  },
+  listMenuBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.18)",
+    padding: 20,
+  },
+  listMenuPanel: {
+    width: "100%",
+    maxWidth: 520,
+    maxHeight: "70%",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+  },
+  listMenuTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 12,
+  },
+  listMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 6,
+    backgroundColor: "#f2f2f2",
+  },
+  listMenuItemActive: {
+    backgroundColor: "#e67e22",
+  },
+  listMenuItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#333",
+  },
+  listMenuItemTextActive: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  manageTeamsButton: {
+    alignItems: "center",
+    paddingTop: 14,
+  },
+  manageTeamsText: {
+    color: "#e67e22",
+    fontWeight: "bold",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -403,6 +602,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
   },
+  loadError: {
+    alignItems: "center",
+    marginTop: 20,
+  },
+  teamLoadError: {
+    marginHorizontal: 20,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#b42318",
+    textAlign: "center",
+  },
+  retryText: {
+    color: "#e67e22",
+    fontWeight: "600",
+    marginTop: 8,
+  },
   modalBackdrop: {
     flex: 1,
     justifyContent: "center",
@@ -412,6 +629,7 @@ const styles = StyleSheet.create({
   },
   filterPanel: {
     width: "100%",
+    maxWidth: 600,
     maxHeight: "85%",
     backgroundColor: "#fff",
     borderRadius: 20,

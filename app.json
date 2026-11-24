@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "cmsc128-Lab1_CRUD_blancaflor",
+    "name": "Todone",
     "slug": "cmsc128-Lab1_CRUD_blancaflor",
     "scheme": "todoapp",
     "version": "1.0.0",
@@ -16,14 +16,35 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.rykonnen.Todone"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#E6F4FE"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "e6700ad8-495a-4dfe-85e1-270ca07c3ced"
+      }
+    }
   }
 }

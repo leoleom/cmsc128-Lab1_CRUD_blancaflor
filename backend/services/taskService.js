@@ -1,141 +1,155 @@
 import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
-import { db } from "../firebaseConfig";
+import { db, auth } from "../firebaseConfig";
 
-// getter
+// returns the logged-in user's id, or null if nobody is logged in
+function getCurrentUid() {
+    return auth.currentUser ? auth.currentUser.uid : null;
+}
+
+// turns the tags text ("a, b") into a clean list
+function parseTags(tags) {
+    return tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+}
+
+// personal (teamId null) or a team's list
+function scopeFilters(uid, teamId) {
+    return teamId
+        ? [where("teamId", "==", teamId)]
+        : [where("userId", "==", uid), where("teamId", "==", null)];
+}
+
 export async function getTaskById(taskId) {
+    // nobody logged in means no task
+    const uid = getCurrentUid();
+    if (!uid) return null;
+
     try {
-        const taskRef = doc(db, "tasks", taskId);
-        const snapshot = await getDoc(taskRef);
+        // load the task
+        const snapshot = await getDoc(doc(db, "tasks", taskId));
         if (!snapshot.exists()) return null;
-        return { id: snapshot.id, ...snapshot.data() };
+        const data = snapshot.data();
+        let canDelete = data.userId === uid;
+
+        // Team owners and members may see team tasks; personal tasks are owner-only.
+        if (data.teamId) {
+            const team = await getDoc(doc(db, "teams", data.teamId));
+            if (!team.exists()) return null;
+            const teamData = team.data();
+            if (teamData.ownerId !== uid && !teamData.memberIds?.includes(uid)) return null;
+            canDelete = canDelete || teamData.ownerId === uid;
+        } else if (!canDelete) {
+            return null;
+        }
+        return { id: snapshot.id, ...data, canDelete };
     } catch (error) {
-        console.error("getTaskById failed:", error);
+        // refuse people who aren't allowed
+        if (error.code === "permission-denied") return null;
         throw error;
     }
 }
 
-// update
 export async function updateTask(taskId, { title, details, dueDate, priority, tags }) {
-    try {
-        const taskRef = doc(db, "tasks", taskId);
-        await updateDoc(taskRef, {
-            title: title.trim(),
-            details: details.trim(),
-            dueDate: Timestamp.fromDate(dueDate),
-            priority: priority.toLowerCase(),
-            tags: tags
-                ? tags.split(",").map((t) => t.trim()).filter(Boolean)
-                : [],
-        });
-    } catch (error) {
-        console.error("updateTask failed:", error);
-        throw error;
-    }
+    // save the edited fields onto the existing task
+    await updateDoc(doc(db, "tasks", taskId), {
+        title: title.trim(),
+        details: details.trim(),
+        dueDate: Timestamp.fromDate(dueDate),
+        priority: priority.toLowerCase(),
+        tags: parseTags(tags),
+    });
 }
 
-// delete
 export async function deleteTask(taskId) {
-    try {
-        const taskRef = doc(db, "tasks", taskId);
-        await deleteDoc(taskRef);
-    } catch (error) {
-        console.error("deleteTask failed:", error);
-        throw error;
-    }
+    await deleteDoc(doc(db, "tasks", taskId));
 }
 
-// create 
-export async function createTask({ title, details, dueDate, priority, tags }) {
-    try {
-        const tasksRef = collection(db, "tasks");
+// teamId is optional: null means a personal task
+export async function createTask({ title, details, dueDate, priority, tags, teamId = null }) {
+    // only a logged-in user can create a task
+    const uid = getCurrentUid();
+    if (!uid) throw new Error("You must be logged in to create a task.");
 
-        const newTask = {
-            title: title.trim(),
-            details: details.trim(),
-            dueDate: Timestamp.fromDate(dueDate),
-            priority: priority.toLowerCase(), 
-            tags: tags
-                ? tags.split(",").map((t) => t.trim()).filter(Boolean)
-                : [],
-            isDone: false,
-            createdAt: Timestamp.now(),
-        };
+    // build the task, stamped with its owner
+    const newTask = {
+        userId: uid,
+        teamId: teamId ?? null,
+        title: title.trim(),
+        details: details.trim(),
+        dueDate: Timestamp.fromDate(dueDate),
+        priority: priority.toLowerCase(),
+        tags: parseTags(tags),
+        isDone: false,
+        createdAt: Timestamp.now(),
+    };
 
-        const docRef = await addDoc(tasksRef, newTask);
-        return { id: docRef.id, ...newTask };
-    } catch (error) {
-        console.error("createTask failed:", error);
-        throw error;
-    }
-
-    
+    // save it and hand back the new task with its id
+    const docRef = await addDoc(collection(db, "tasks"), newTask);
+    return { id: docRef.id, ...newTask };
 }
 
 export async function toggleTaskComplete(taskId, currentValue) {
-  try {
-    const taskRef = doc(db, "tasks", taskId);
-    await updateDoc(taskRef, { isDone: !currentValue });
-  } catch (error) {
-    console.error("toggleTaskComplete failed:", error);
-    throw error;
-  }
+    await updateDoc(doc(db, "tasks", taskId), { isDone: !currentValue });
 }
 
+export async function getTasksByDate(dateString, teamId = null) {
+    // nobody logged in means no tasks
+    const uid = getCurrentUid();
+    if (!uid) return [];
 
-export async function getTasksByDate(dateString) {
-    try {
-        const [year, month, day] = dateString.split("-").map(Number);
-        const startOfDay = new Date(year, month - 1, day);
-        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+    // work out the start and end of the chosen day
+    const [year, month, day] = dateString.split("-").map(Number);
+    const startOfDay = new Date(year, month - 1, day);
+    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
 
-        const tasksRef = collection(db, "tasks");
-        const q = query(
-            tasksRef,
-            where("dueDate", ">=", Timestamp.fromDate(startOfDay)),
-            where("dueDate", "<=", Timestamp.fromDate(endOfDay))
-        );
-        const snapshot = await getDocs(q);
+    // ask for this list's tasks that are due within that day
+    const q = query(
+        collection(db, "tasks"),
+        ...scopeFilters(uid, teamId),
+        where("dueDate", ">=", Timestamp.fromDate(startOfDay)),
+        where("dueDate", "<=", Timestamp.fromDate(endOfDay))
+    );
+    const snapshot = await getDocs(q);
 
-        return snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-    } catch (error) {
-        console.error("getTasksByDate failed:", error);
-        throw error;
-    }
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function getAllTasks() {
-    try {
-        const tasksRef = collection(db, "tasks");
-        const snapshot = await getDocs(tasksRef);
+export async function getAllTasks(teamId = null) {
+    // nobody logged in means no tasks
+    const uid = getCurrentUid();
+    if (!uid) return [];
 
-        return snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-    } catch (error) {
-        console.error("getAllTasks failed:", error);
-        throw error;
-    }
+    // ask for everything in this list
+    const snapshot = await getDocs(query(collection(db, "tasks"), ...scopeFilters(uid, teamId)));
+
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function getAllTaskDates() {
-    try {
-        const tasksRef = collection(db, "tasks");
-        const snapshot = await getDocs(tasksRef);
+function formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
 
-        return snapshot.docs
-            .map((doc) => {
-                const dueDate = doc.data().dueDate;
-                if (!dueDate) return null;
-                // conversion
-                return dueDate.toDate().toISOString().split("T")[0];
-            })
-            .filter(Boolean);
-    } catch (error) {
-        console.error("getAllTaskDates failed:", error);
-        throw error;
-    }
+export async function getTaskDatesForMonth(year, month, teamId = null) {
+    // month is 1-based, matching the value returned by react-native-calendars
+    const uid = getCurrentUid();
+    if (!uid) return [];
+
+    const startOfMonth = new Date(year, month - 1, 1);
+    const startOfNextMonth = new Date(year, month, 1);
+    const snapshot = await getDocs(query(
+        collection(db, "tasks"),
+        ...scopeFilters(uid, teamId),
+        where("dueDate", ">=", Timestamp.fromDate(startOfMonth)),
+        where("dueDate", "<", Timestamp.fromDate(startOfNextMonth))
+    ));
+
+    return snapshot.docs
+        .map((d) => {
+            const dueDate = d.data().dueDate;
+            if (!dueDate) return null;
+            return formatLocalDate(dueDate.toDate());
+        })
+        .filter(Boolean);
 }
