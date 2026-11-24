@@ -14,8 +14,7 @@ export default function AddTask() {
             await createTask({ ...values, teamId: activeTeamId });
             showAlert("Task saved!");
             router.replace("/");
-        } catch (error) {
-            console.error("handleSave failed:", error?.message || String(error));
+        } catch {
             showAlert("Couldn't save the task. Please try again.");
         }
     };

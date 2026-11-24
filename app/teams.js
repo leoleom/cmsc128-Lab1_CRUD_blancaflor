@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,12 +8,19 @@ import { useList } from "../frontend/context/ListContext";
 import { createTeam, getTeamMembers, addMemberByEmail, removeMember, deleteTeam } from "../backend/services/teamService";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
 
+const TEAM_DELETE_UNDO_DURATION = 5000;
+
 export default function Teams() {
     const { user } = useAuth();
     const router = useRouter();
-    const { activeTeamId, setActiveTeamId, teams, teamsLoaded, refreshTeams } = useList();
+    const { activeTeamId, setActiveTeamId, teams, teamsLoaded, teamsError, refreshTeams } = useList();
 
     const [membersByTeam, setMembersByTeam] = useState({});
+    const [ownersByTeam, setOwnersByTeam] = useState({});
+    const [memberLoadErrors, setMemberLoadErrors] = useState({});
+    const [pendingTeamDeletion, setPendingTeamDeletion] = useState(null);
+    const teamDeletionTimer = useRef(null);
+    const isMounted = useRef(true);
 
     const [newTeamName, setNewTeamName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
@@ -31,13 +38,29 @@ export default function Teams() {
     const [addOpenTeamId, setAddOpenTeamId] = useState(null);
     const [removeModeTeamId, setRemoveModeTeamId] = useState(null);
 
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
     const loadMembers = useCallback(async (team) => {
         // fetch the members of one team and remember them by team id
         try {
-            const members = await getTeamMembers(team.memberIds);
-            setMembersByTeam((current) => ({ ...current, [team.id]: members }));
-        } catch (error) {
-            console.error("Failed to load members:", error);
+            const userIds = [...new Set([team.ownerId, ...(team.memberIds || [])].filter(Boolean))];
+            const profiles = await getTeamMembers(userIds);
+            setOwnersByTeam((current) => ({
+                ...current,
+                [team.id]: profiles.find((profile) => profile.id === team.ownerId),
+            }));
+            setMembersByTeam((current) => ({
+                ...current,
+                [team.id]: profiles.filter((profile) => profile.id !== team.ownerId),
+            }));
+            setMemberLoadErrors((current) => ({ ...current, [team.id]: false }));
+        } catch {
+            setMemberLoadErrors((current) => ({ ...current, [team.id]: true }));
         }
     }, []);
 
@@ -91,8 +114,7 @@ export default function Teams() {
 
             showAlert("Team created", `"${teamName}" is ready. Tap Edit on it to add members.`);
 
-        } catch (error) {
-            console.error("createTeam failed:", error);
+        } catch {
             showAlert("Couldn't create team", "Something went wrong, so the team was not created. Please try again.");
         } finally {
             setIsCreating(false);
@@ -123,7 +145,6 @@ export default function Teams() {
             } else if (error.code === "team/not-owner") {
                 showAlert("Not allowed", "Only the team owner can add members.");
             } else {
-                console.error("addMemberByEmail failed:", error);
                 showAlert("Error", "Couldn't add that person. Please try again.");
             }
         } finally {
@@ -140,8 +161,7 @@ export default function Teams() {
                 try {
                     await removeMember(team.id, member.id);
                     await refreshTeams();
-                } catch (error) {
-                    console.error("removeMember failed:", error);
+                } catch {
                     showAlert("Error", "Couldn't remove that person. Please try again.");
                 }
             }
@@ -152,27 +172,57 @@ export default function Teams() {
         // confirm with user
         confirmAction(
             "Delete team",
-            `Delete "${team.name}" and all of its tasks? This can't be undone.`,
+            `Delete "${team.name}" and all of its tasks?`,
             "Delete",
-            async () => {
-                try {
-                    await deleteTeam(team.id);
-
-                    // switch it back to Personal
-                    if (activeTeamId === team.id) {
-                        setActiveTeamId(null);
-                    }
-
-                    // close the card and refresh the list
-                    setExpandedTeamId(null);
-                    await refreshTeams();
-                    showAlert("Team deleted", `"${team.name}" and its tasks were deleted.`);
-                } catch (error) {
-                    console.error("deleteTeam failed:", error);
-                    showAlert("Couldn't delete team", "The team could not be deleted. Please try again.");
+            () => {
+                if (teamDeletionTimer.current) {
+                    clearTimeout(teamDeletionTimer.current);
                 }
+
+                const wasActive = activeTeamId === team.id;
+                setPendingTeamDeletion({ team, wasActive });
+                if (wasActive) {
+                    setActiveTeamId(null);
+                }
+                setExpandedTeamId(null);
+
+                teamDeletionTimer.current = setTimeout(async () => {
+                    teamDeletionTimer.current = null;
+                    if (isMounted.current) {
+                        setPendingTeamDeletion(null);
+                    }
+                    try {
+                        await deleteTeam(team.id);
+                        await refreshTeams();
+                        if (isMounted.current) {
+                            setPendingTeamDeletion(null);
+                            showAlert("Team deleted", `"${team.name}" and its tasks were deleted.`);
+                        }
+                    } catch {
+                        await refreshTeams();
+                        if (isMounted.current) {
+                            setPendingTeamDeletion(null);
+                            if (wasActive) {
+                                setActiveTeamId(team.id);
+                            }
+                            showAlert("Couldn't delete team", "The team could not be deleted. Please try again.");
+                        }
+                    }
+                }, TEAM_DELETE_UNDO_DURATION);
             }
         );
+    };
+
+    const handleUndoDeleteTeam = () => {
+        if (!pendingTeamDeletion) return;
+        if (teamDeletionTimer.current) {
+            clearTimeout(teamDeletionTimer.current);
+            teamDeletionTimer.current = null;
+        }
+        if (pendingTeamDeletion.wasActive) {
+            setActiveTeamId(pendingTeamDeletion.team.id);
+        }
+        setPendingTeamDeletion(null);
     };
 
     const openTeamList = (teamId) => {
@@ -186,6 +236,7 @@ export default function Teams() {
         const isAddOpen = addOpenTeamId === team.id;
         const isRemoveMode = removeModeTeamId === team.id;
         const members = membersByTeam[team.id] || [];
+        const owner = ownersByTeam[team.id];
 
         let toggleLabel = isOwner ? "Edit" : "Members";
         if (isExpanded) {
@@ -210,11 +261,28 @@ export default function Teams() {
 
                 {isExpanded && (
                     <View style={styles.expandedSection}>
+                        <Text style={styles.membersLabel}>Owner</Text>
+                        <View style={styles.ownerRow}>
+                            <Text style={styles.memberName}>
+                                {owner?.displayName || (memberLoadErrors[team.id] ? "Unavailable" : "Loading...")}
+                            </Text>
+                            {owner?.email ? (
+                                <Text style={styles.memberEmail}>{owner.email}</Text>
+                            ) : null}
+                        </View>
                         <Text style={styles.membersLabel}>Members</Text>
+                        {memberLoadErrors[team.id] ? (
+                            <View style={styles.memberLoadError}>
+                                <Text style={styles.errorText}>Couldn't load members.</Text>
+                                <TouchableOpacity onPress={() => loadMembers(team)}>
+                                    <Text style={styles.retryText}>Retry</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
                         {members.map((member) => (
                             <View key={member.id} style={styles.memberRow}>
                                 <Text style={styles.memberName}>
-                                    {member.displayName}{member.id === team.ownerId ? " (owner)" : ""}
+                                    {member.displayName}
                                 </Text>
                                 {member.email ? (
                                     <Text style={styles.memberEmail}>{member.email}</Text>
@@ -294,7 +362,11 @@ export default function Teams() {
 
                         {isOwner && !isAddOpen && !isRemoveMode && (
                             <View style={styles.dangerZone}>
-                                <TouchableOpacity style={styles.deleteTeamButton} onPress={() => handleDeleteTeam(team)}>
+                                <TouchableOpacity
+                                    style={styles.deleteTeamButton}
+                                    onPress={() => handleDeleteTeam(team)}
+                                    disabled={Boolean(pendingTeamDeletion)}
+                                >
                                     <Text style={styles.deleteTeamText}>Delete this team</Text>
                                 </TouchableOpacity>
                             </View>
@@ -351,14 +423,34 @@ export default function Teams() {
                     </View>
                 )}
 
+                {teamsError && (
+                    <View style={styles.teamLoadError}>
+                        <Text style={styles.errorText}>Couldn't refresh teams. Check your connection and try again.</Text>
+                        <TouchableOpacity onPress={refreshTeams}>
+                            <Text style={styles.retryText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
                 {!teamsLoaded ? (
                     <Text style={styles.emptyText}>Loading...</Text>
-                ) : teams.length === 0 ? (
+                ) : teams.length === 0 && !teamsError ? (
                     <Text style={styles.emptyText}>You're not in any teams yet.</Text>
-                ) : (
-                    teams.map(renderTeam)
-                )}
+                ) : teams.length > 0 ? (
+                    teams
+                        .filter((team) => team.id !== pendingTeamDeletion?.team.id)
+                        .map(renderTeam)
+                ) : null}
             </ScrollView>
+            {pendingTeamDeletion && (
+                <View style={styles.deleteSnackbar}>
+                    <Text style={styles.deleteSnackbarText} numberOfLines={2}>
+                        "{pendingTeamDeletion.team.name}" and its tasks will be deleted
+                    </Text>
+                    <TouchableOpacity onPress={handleUndoDeleteTeam}>
+                        <Text style={styles.undoText}>Undo</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -489,6 +581,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#e2e2e2",
     },
+    ownerRow: {
+        paddingBottom: 10,
+        marginBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "#e2e2e2",
+    },
     memberName: {
         fontSize: 15,
         fontWeight: "600",
@@ -604,5 +702,45 @@ const styles = StyleSheet.create({
         color: "#999",
         textAlign: "center",
         marginTop: 20,
+    },
+    teamLoadError: {
+        marginBottom: 16,
+    },
+    memberLoadError: {
+        alignItems: "flex-start",
+        marginBottom: 8,
+    },
+    errorText: {
+        color: "#b42318",
+    },
+    retryText: {
+        color: "#e67e22",
+        fontWeight: "600",
+        marginTop: 6,
+    },
+    deleteSnackbar: {
+        position: "absolute",
+        left: 20,
+        right: 20,
+        bottom: 120,
+        minHeight: 52,
+        borderRadius: 10,
+        backgroundColor: "#4c4a4a",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+    },
+    deleteSnackbarText: {
+        flex: 1,
+        color: "#fff",
+        fontSize: 14,
+    },
+    undoText: {
+        color: "#C95656",
+        fontSize: 14,
+        fontWeight: "bold",
     },
 });

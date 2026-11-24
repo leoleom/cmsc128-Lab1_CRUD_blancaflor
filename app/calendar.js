@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,15 +23,18 @@ export default function CalendarScreen() {
     const [tasks, setTasks] = useState([]);
     const [markedDates, setMarkedDates] = useState({});
     const [loading, setLoading] = useState(false);
+    const [taskLoadError, setTaskLoadError] = useState(false);
+    const [markedDatesError, setMarkedDatesError] = useState(false);
+    const [markedDatesRetry, setMarkedDatesRetry] = useState(0);
 
     const loadTasks = async () => {
         setLoading(true);
+        setTaskLoadError(false);
         try {
             const fetched = await getTasksByDate(selectedDate);
             setTasks(fetched);
-        } catch (error) {
-            console.error("Failed to load tasks:", error);
-            setTasks([]);
+        } catch {
+            setTaskLoadError(true);
         } finally {
             setLoading(false);
         }
@@ -50,8 +53,7 @@ export default function CalendarScreen() {
                     item.id === task.id ? { ...item, isDone: !task.isDone } : item
                 )
             );
-        } catch (error) {
-            console.error("Failed to toggle task:", error);
+        } catch {
             showAlert("Couldn't update task", "The task was not changed. Please try again.");
         }
     };
@@ -59,6 +61,7 @@ export default function CalendarScreen() {
     useEffect(() => {
         let isCurrent = true;
         const loadMarkedDates = async () => {
+            setMarkedDatesError(false);
             try {
                 const dates = await getTaskDatesForMonth(visibleMonth.year, visibleMonth.month);
                 const marks = {};
@@ -66,8 +69,8 @@ export default function CalendarScreen() {
                     marks[date] = { marked: true, dotColor: "#e67e22" };
                 });
                 if (isCurrent) setMarkedDates(marks);
-            } catch (error) {
-                console.error("Failed to load marked dates:", error);
+            } catch {
+                if (isCurrent) setMarkedDatesError(true);
             }
         };
 
@@ -75,7 +78,7 @@ export default function CalendarScreen() {
         return () => {
             isCurrent = false;
         };
-    }, [visibleMonth]);
+    }, [visibleMonth, markedDatesRetry]);
 
     const calendarMarkedDates = {
         ...markedDates,
@@ -117,12 +120,24 @@ export default function CalendarScreen() {
                     selectedDayBackgroundColor: "#e67e22",
                 }}
             />
+            {markedDatesError && (
+                <TouchableOpacity
+                    style={styles.errorNotice}
+                    onPress={() => setMarkedDatesRetry((attempt) => attempt + 1)}
+                >
+                    <Text style={styles.errorText}>Couldn't load calendar task markers. Tap to retry.</Text>
+                </TouchableOpacity>
+            )}
 
             <View style={styles.taskListContainer}>
                 <Text style={styles.sectionTitle}>Tasks for {selectedDate}</Text>
 
                 {loading ? (
                     <Text style={styles.emptyText}>Loading...</Text>
+                ) : taskLoadError ? (
+                    <TouchableOpacity onPress={loadTasks}>
+                        <Text style={styles.errorText}>Couldn't load tasks. Tap to retry.</Text>
+                    </TouchableOpacity>
                 ) : tasks.length === 0 ? (
                     <Text style={styles.emptyText}>No tasks for this day</Text>
                 ) : (
@@ -164,6 +179,14 @@ const styles = StyleSheet.create({
         color: "#999",
         textAlign: "center",
         marginTop: 20,
+    },
+    errorNotice: {
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    errorText: {
+        color: "#b42318",
+        textAlign: "center",
     },
     monthHeader: {
         fontSize: 25,

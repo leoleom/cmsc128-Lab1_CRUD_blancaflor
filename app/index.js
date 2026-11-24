@@ -19,12 +19,14 @@ export default function HomeScreen() {
     activeTeamId,
     setActiveTeamId,
     teams,
+    teamsError,
     refreshTeams,
     pendingDeletionTask,
     setPendingDeletionTask,
   } = useList();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [taskLoadError, setTaskLoadError] = useState(false);
   const [page, setPage] = useState("dueSoon"); // "dueSoon" or "finished"
   const [sortBy, setSortBy] = useState("createdAt");
   const [selectedTags, setSelectedTags] = useState([]);
@@ -41,11 +43,11 @@ export default function HomeScreen() {
 
   const reloadTasks = useCallback(async () => {
     setLoading(true);
+    setTaskLoadError(false);
     try {
       setTasks(await getAllTasks(activeTeamId));
-    } catch (error) {
-      console.error("Failed to load tasks:", error);
-      setTasks([]);
+    } catch {
+      setTaskLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -152,7 +154,6 @@ export default function HomeScreen() {
         archiveTimersRef.current.delete(task.id);
       }
     } catch (error) {
-      console.error("Failed to toggle task:", error);
       const timer = archiveTimersRef.current.get(task.id);
       if (timer) clearTimeout(timer);
       archiveTimersRef.current.delete(task.id);
@@ -231,6 +232,13 @@ export default function HomeScreen() {
     <View style={styles.taskListContainer}>
       {loading ? (
         <Text style={styles.emptyText}>Loading...</Text>
+      ) : taskLoadError ? (
+        <View style={styles.loadError}>
+          <Text style={styles.errorText}>Couldn't load tasks. Check your connection and try again.</Text>
+          <TouchableOpacity onPress={reloadTasks}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : displayedTasks.length === 0 ? (
         <Text style={styles.emptyText}>
           {page === "dueSoon" ? "No tasks due today" : "No finished tasks yet"}
@@ -272,6 +280,11 @@ export default function HomeScreen() {
         <Text style={styles.listSelectorText} numberOfLines={1}>{activeListName}</Text>
         <Ionicons name="chevron-down" size={18} color="#333" />
       </TouchableOpacity>
+      {teamsError && (
+        <TouchableOpacity style={styles.teamLoadError} onPress={refreshTeams}>
+          <Text style={styles.errorText}>Couldn't refresh teams. Tap to retry.</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>
@@ -588,6 +601,24 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
     marginTop: 20,
+  },
+  loadError: {
+    alignItems: "center",
+    marginTop: 20,
+  },
+  teamLoadError: {
+    marginHorizontal: 20,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#b42318",
+    textAlign: "center",
+  },
+  retryText: {
+    color: "#e67e22",
+    fontWeight: "600",
+    marginTop: 8,
   },
   modalBackdrop: {
     flex: 1,

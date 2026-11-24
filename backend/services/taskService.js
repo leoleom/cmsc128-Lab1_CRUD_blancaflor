@@ -30,12 +30,12 @@ export async function getTaskById(taskId) {
         const data = snapshot.data();
         let canDelete = data.userId === uid;
 
-        // team task: only members may see it; personal task: only its owner
+        // Team owners and members may see team tasks; personal tasks are owner-only.
         if (data.teamId) {
             const team = await getDoc(doc(db, "teams", data.teamId));
             if (!team.exists()) return null;
             const teamData = team.data();
-            if (!teamData.memberIds?.includes(uid)) return null;
+            if (teamData.ownerId !== uid && !teamData.memberIds?.includes(uid)) return null;
             canDelete = canDelete || teamData.ownerId === uid;
         } else if (!canDelete) {
             return null;

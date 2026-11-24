@@ -25,12 +25,7 @@ export async function loginUser({ email, password }) {
 }
 
 export async function logoutUser() {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    console.error("logoutUser failed:", error);
-    throw error;
-  }
+  await signOut(auth);
 }
 
 export function subscribeToAuthChanges(callback) {

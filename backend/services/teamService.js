@@ -20,11 +20,11 @@ export async function createTeam(name) {
         throw makeError("team/not-logged-in", "You must be logged in to create a team.");
     }
 
-    // the creator becomes the owner and the first member
+    // the owner is tracked separately from regular team members
     const newTeam = {
         name: name.trim(),
         ownerId: uid,
-        memberIds: [uid],
+        memberIds: [],
         createdAt: Timestamp.now(),
     };
 
@@ -39,15 +39,18 @@ export async function getMyTeams() {
         return [];
     }
 
-    // ask only for teams whose member list contains me
-    const q = query(collection(db, "teams"), where("memberIds", "array-contains", uid));
-    const snapshot = await getDocs(q);
+    const teamsCollection = collection(db, "teams");
+    const [ownedSnapshot, memberSnapshot] = await Promise.all([
+        getDocs(query(teamsCollection, where("ownerId", "==", uid))),
+        getDocs(query(teamsCollection, where("memberIds", "array-contains", uid))),
+    ]);
 
-    // turn each result into a plain object that includes its id
-    const teams = [];
-    for (let i = 0; i < snapshot.docs.length; i++) {
-        teams.push({ id: snapshot.docs[i].id, ...snapshot.docs[i].data() });
-    }
+    // Merge both roles and deduplicate legacy teams where the owner is still a member.
+    const teamsById = new Map();
+    [...ownedSnapshot.docs, ...memberSnapshot.docs].forEach((teamDoc) => {
+        teamsById.set(teamDoc.id, { id: teamDoc.id, ...teamDoc.data() });
+    });
+    const teams = [...teamsById.values()];
 
     // oldest team first
     teams.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
@@ -103,7 +106,7 @@ export async function addMemberByEmail(teamId, email) {
     if (team.ownerId !== uid) {
         throw makeError("team/not-owner", "Only the team owner can add members.");
     }
-    if (team.memberIds.includes(newMemberId)) {
+    if (team.ownerId === newMemberId || team.memberIds?.includes(newMemberId)) {
         throw makeError("team/already-member", "That person is already in this team.");
     }
 

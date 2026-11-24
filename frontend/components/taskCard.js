@@ -39,6 +39,8 @@ export default function TaskCard({ task, onToggleComplete }) {
         let cancelled = false;
         getUserDisplayName(userId).then((name) => {
             if (!cancelled) setOwnerName(name);
+        }).catch(() => {
+            if (!cancelled) setOwnerName("Name unavailable");
         });
 
         // Ignore the result if the window closes before it arrives

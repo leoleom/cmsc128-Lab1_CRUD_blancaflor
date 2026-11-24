@@ -25,8 +25,7 @@ export default function ForgotPassword() {
                 "If an account exists for that email, a password reset link has been sent."
             );
             router.back();
-        } catch (error) {
-            console.error("requestPasswordReset failed:", error);
+        } catch {
             showAlert("Error", "Couldn't send the reset email. Please try again.");
         } finally {
             setIsSubmitting(false);

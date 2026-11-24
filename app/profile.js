@@ -167,8 +167,8 @@ export default function Profile() {
     const performLogout = async () => {
         try {
             await logoutUser();
-        } catch (error) {
-            console.error("Logout failed:", error);
+        } catch {
+            showAlert("Couldn't log out", "Please check your connection and try again.");
         }
     };
 

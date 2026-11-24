@@ -6,6 +6,7 @@ const ListContext = createContext({
     activeTeamId: null,
     teams: [],
     teamsLoaded: false,
+    teamsError: false,
     editingTaskId: null,
     pendingDeletionTask: null,
     setActiveTeamId: () => {},
@@ -20,6 +21,7 @@ export function ListProvider({ children }) {
     const [teams, setTeams] = useState([]);
     const [activeTeamId, setActiveTeamId] = useState(null);
     const [teamsLoaded, setTeamsLoaded] = useState(false);
+    const [teamsError, setTeamsError] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [pendingDeletionTask, setPendingDeletionTask] = useState(null);
 
@@ -27,18 +29,20 @@ export function ListProvider({ children }) {
         if (!uid) {
             setTeams([]);
             setActiveTeamId(null);
+            setTeamsError(false);
             setEditingTaskId(null);
             setPendingDeletionTask(null);
             setTeamsLoaded(true);
             return;
         }
+        setTeamsError(false);
         try {
             const mine = await getMyTeams();
             setTeams(mine);
             // if the selected team is gone, or a different user logged in, fall back to Personal
             setActiveTeamId((cur) => (cur && mine.some((t) => t.id === cur) ? cur : null));
-        } catch (error) {
-            console.error("Failed to load teams:", error);
+        } catch {
+            setTeamsError(true);
         } finally {
             setTeamsLoaded(true);
         }
@@ -55,6 +59,7 @@ export function ListProvider({ children }) {
                 activeTeamId,
                 teams,
                 teamsLoaded,
+                teamsError,
                 editingTaskId,
                 pendingDeletionTask,
                 setActiveTeamId,

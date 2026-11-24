@@ -20,17 +20,13 @@ export async function syncUserRecord(user) {
 }
 
 export async function getUserDisplayName(uid) {
-    try {
-        // read person's record from the users collection
-        const snapshot = await getDoc(doc(db, "users", uid));
-        if (!snapshot.exists()) {
-            return "Unknown user";
-        }
-
-        // prefer the display name, fall back to the email
-        const data = snapshot.data();
-        return data.displayName || data.email || "Unknown user";
-    } catch (error) {
+    // read person's record from the users collection
+    const snapshot = await getDoc(doc(db, "users", uid));
+    if (!snapshot.exists()) {
         return "Unknown user";
     }
+
+    // prefer the display name, fall back to the email
+    const data = snapshot.data();
+    return data.displayName || data.email || "Unknown user";
 }

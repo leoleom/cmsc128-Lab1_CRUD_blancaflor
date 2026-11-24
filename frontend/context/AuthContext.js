@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { logoutUser, subscribeToAuthChanges, verifyPendingEmailChange } from "../../backend/services/authService";
 import { syncUserRecord } from "../../backend/services/userService";
-import { showAlertAndWait } from "../utils/alerts";
+import { showAlert, showAlertAndWait } from "../utils/alerts";
 
 const AuthContext = createContext({ user: null, isCheckingAuth: true });
 
@@ -17,10 +17,12 @@ function showEmailChangeAlert(sessionExpired = false) {
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const syncFailureUserId = useRef(null);
 
     useEffect(() => {
         let isMounted = true;
         let isCheckingEmailChange = false;
+        let hasShownEmailCheckError = false;
         let emailCheckInterval;
 
         const checkVerifiedEmailChange = async () => {
@@ -28,6 +30,7 @@ export function AuthProvider({ children }) {
             isCheckingEmailChange = true;
             try {
                 const result = await verifyPendingEmailChange();
+                hasShownEmailCheckError = false;
                 if (result === "session-expired") {
                     await showEmailChangeAlert(true);
                     await logoutUser();
@@ -39,8 +42,12 @@ export function AuthProvider({ children }) {
                 await logoutUser();
                 return true;
             } catch (error) {
-                if (error.code !== "auth/user-token-expired") {
-                    console.error("Checking verified email change failed:", error);
+                if (error.code !== "auth/user-token-expired" && !hasShownEmailCheckError) {
+                    showAlert(
+                        "Couldn't check email verification",
+                        "We'll try again automatically. Check your connection if the problem continues."
+                    );
+                    hasShownEmailCheckError = true;
                 }
                 return false;
             } finally {
@@ -103,9 +110,23 @@ export function AuthProvider({ children }) {
         }
 
         // save the email and name each time someone logs in or the app reopens
-        syncUserRecord(user).catch((error) => {
-            console.warn("syncUserRecord failed:", error);
+        let isCurrent = true;
+        syncUserRecord(user).then(() => {
+            if (isCurrent && syncFailureUserId.current === user.uid) {
+                syncFailureUserId.current = null;
+            }
+        }).catch(() => {
+            if (isCurrent && syncFailureUserId.current !== user.uid) {
+                syncFailureUserId.current = user.uid;
+                showAlert(
+                    "Profile sync issue",
+                    "Your account is signed in, but some team details may not update until your connection is restored."
+                );
+            }
         });
+        return () => {
+            isCurrent = false;
+        };
     }, [user]);
 
     return (
