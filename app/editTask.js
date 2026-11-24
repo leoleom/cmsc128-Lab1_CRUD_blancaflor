@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { getTaskById, updateTask } from "../backend/services/taskService";
 import TaskForm from "../frontend/components/taskForm";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
-import { useList } from "../frontend/context/ListContext";
+import { storeEditingTaskId, useList } from "../frontend/context/ListContext";
 
 function capitalize(word) {
     if (!word) return "";
@@ -13,18 +13,36 @@ function capitalize(word) {
 
 export default function EditTask() {
     const router = useRouter();
-    const { taskId: routeTaskId } = useLocalSearchParams();
-    const taskId = Array.isArray(routeTaskId) ? routeTaskId[0] : routeTaskId;
-    const { setPendingDeletionTask } = useList();
+    const {
+        editingTaskId,
+        setEditingTaskId,
+        setActiveTeamId,
+        setPendingDeletionTask,
+    } = useList();
+    const taskId = editingTaskId;
 
     const [initialValues, setInitialValues] = useState(null);
     const [taskToDelete, setTaskToDelete] = useState(null);
     const [canDelete, setCanDelete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
+    const isLeavingEdit = useRef(false);
+
+    const clearTaskSelection = () => {
+        isLeavingEdit.current = true;
+        setEditingTaskId(null);
+        try {
+            storeEditingTaskId(null);
+        } catch {
+            showAlert("Couldn't clear edit selection", "The selected task may remain saved in this browser session.");
+        }
+    };
 
     useEffect(() => {
+        if (isLeavingEdit.current) return;
+
         if (!taskId) {
+            if (isLeavingEdit.current) return;
             showAlert("Task unavailable", "Open a task from your list to edit it.");
             router.replace("/");
             return;
@@ -36,10 +54,12 @@ export default function EditTask() {
                 const task = await getTaskById(taskId);
                 if (!task) {
                     showAlert("Not found", "This task no longer exists.");
+                    clearTaskSelection();
                     router.replace("/");
                     return;
                 }
 
+                setActiveTeamId(task.teamId || null);
                 setTaskToDelete(task);
                 // give the form the values it should start with
                 setInitialValues({
@@ -62,12 +82,13 @@ export default function EditTask() {
         };
 
         loadTask();
-    }, [taskId, router]);
+    }, [taskId, setEditingTaskId, setActiveTeamId, router]);
 
     const handleSave = async (values) => {
         try {
             // save the edits, then go back to Home
             await updateTask(taskId, values);
+            clearTaskSelection();
             router.replace("/");
         } catch (error) {
             showAlert("Error", "Couldn't save changes. Please try again.");
@@ -84,6 +105,7 @@ export default function EditTask() {
                 setIsDeleting(true);
                 try {
                     setPendingDeletionTask(taskToDelete);
+                    clearTaskSelection();
                     router.replace("/");
                 } catch (error) {
                     showAlert("Error", "Couldn't delete this task. Please try again.");
@@ -109,7 +131,14 @@ export default function EditTask() {
             screenTitle="EDIT TASK:"
             initialValues={initialValues}
             onSave={handleSave}
-            onClose={() => router.back()}
+            onClose={() => {
+                clearTaskSelection();
+                if (router.canGoBack()) {
+                    router.back();
+                } else {
+                    router.replace("/");
+                }
+            }}
             secondaryButton={
                 canDelete
                     ? { label: isDeleting ? "Deleting..." : "Delete", onPress: handleDelete, disabled: isDeleting }

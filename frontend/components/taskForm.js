@@ -163,7 +163,12 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
                     <View style={styles.headerRow}>
                         <Text style={styles.screenTitle}>{screenTitle}</Text>
                         {onClose && (
-                            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                            <TouchableOpacity
+                                style={styles.closeButton}
+                                onPress={onClose}
+                                accessibilityRole="button"
+                                accessibilityLabel="Close task form"
+                            >
                                 <Ionicons name="close" size={20} color="#333" />
                             </TouchableOpacity>
                         )}
@@ -356,8 +361,8 @@ const styles = StyleSheet.create({
         color: "#000000",
     },
     closeButton: {
-        width: 36,
-        height: 36,
+        width: 44,
+        height: 44,
         borderRadius: 8,
         backgroundColor: "#ddd",
         justifyContent: "center",

@@ -5,7 +5,9 @@ import { useRouter } from "expo-router";
 import { formatDueDate, formatDateTime } from "../utils/formatDate";
 import { normalizeTags } from "../utils/tags";
 import { useAuth } from "../context/AuthContext";
+import { useList, storeEditingTaskId } from "../context/ListContext";
 import { getUserDisplayName } from "../../backend/services/userService";
+import { showAlert } from "../utils/alerts";
 
 
 const PRIORITY_COLORS = {
@@ -18,6 +20,7 @@ const PRIORITY_COLORS = {
 export default function TaskCard({ task, onToggleComplete }) {
     const router = useRouter();
     const { user } = useAuth();
+    const { setEditingTaskId } = useList();
     const { id, userId, teamId, title, details, dueDate, createdAt, isDone, priority, tags } = task;
     const taskTags = normalizeTags(tags);
     const [showDetails, setShowDetails] = useState(false);
@@ -53,7 +56,13 @@ export default function TaskCard({ task, onToggleComplete }) {
     const priorityLabel = priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1);
 
     const handleEdit = () => {
-        router.push({ pathname: "/editTask", params: { taskId: id } });
+        setEditingTaskId(id);
+        try {
+            storeEditingTaskId(id);
+        } catch {
+            showAlert("Edit selection not saved", "The task will open, but refreshing this page may lose the selection.");
+        }
+        router.push("/editTask");
     };
 
     const handleToggleComplete = async () => {
