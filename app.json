@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "cmsc128-Lab1_CRUD_blancaflor",
+    "name": "Todone",
     "slug": "cmsc128-Lab1_CRUD_blancaflor",
     "scheme": "todoapp",
     "version": "1.0.0",
@@ -17,7 +17,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.rykonnen.cmsc128Lab1_CRUD_blancaflor"
+      "package": "com.rykonnen.Todone"
     },
     "web": {
       "favicon": "./assets/favicon.png"
