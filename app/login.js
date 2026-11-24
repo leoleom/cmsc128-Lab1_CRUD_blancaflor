@@ -87,7 +87,7 @@ export default function Login() {
                     </Text>
                 </View>
 
-                <TouchableOpacity style={styles.loginButton}
+                <TouchableOpacity style={[styles.loginButton, isSubmitting && styles.disabledButton]}
                     onPress={handleLogin} disabled={isSubmitting}>
                     <Text style={styles.buttonText}>
                         {isSubmitting ? "Logging in..." : "Log In"}
@@ -178,6 +178,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: "center",
         marginTop: 8,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     buttonText: {
         color: "#fff",

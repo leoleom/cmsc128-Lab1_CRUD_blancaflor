@@ -56,7 +56,7 @@ export default function ForgotPassword() {
                 />
 
                 <TouchableOpacity
-                    style={styles.resetButton}
+                    style={[styles.resetButton, isSubmitting && styles.disabledButton]}
                     onPress={handleReset}
                     disabled={isSubmitting}
                 >
@@ -125,6 +125,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: "center",
         marginTop: 8,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     buttonText: {
         color: "#fff",

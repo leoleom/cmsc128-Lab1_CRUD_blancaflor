@@ -7,10 +7,8 @@ const ListContext = createContext({
     teams: [],
     teamsLoaded: false,
     teamsError: false,
-    editingTaskId: null,
     pendingDeletionTask: null,
     setActiveTeamId: () => {},
-    setEditingTaskId: () => {},
     setPendingDeletionTask: () => {},
     refreshTeams: async () => {},
 });
@@ -22,7 +20,6 @@ export function ListProvider({ children }) {
     const [activeTeamId, setActiveTeamId] = useState(null);
     const [teamsLoaded, setTeamsLoaded] = useState(false);
     const [teamsError, setTeamsError] = useState(false);
-    const [editingTaskId, setEditingTaskId] = useState(null);
     const [pendingDeletionTask, setPendingDeletionTask] = useState(null);
 
     const refreshTeams = useCallback(async () => {
@@ -30,7 +27,6 @@ export function ListProvider({ children }) {
             setTeams([]);
             setActiveTeamId(null);
             setTeamsError(false);
-            setEditingTaskId(null);
             setPendingDeletionTask(null);
             setTeamsLoaded(true);
             return;
@@ -60,10 +56,8 @@ export function ListProvider({ children }) {
                 teams,
                 teamsLoaded,
                 teamsError,
-                editingTaskId,
                 pendingDeletionTask,
                 setActiveTeamId,
-                setEditingTaskId,
                 setPendingDeletionTask,
                 refreshTeams,
             }}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { getTaskById, updateTask } from "../backend/services/taskService";
 import TaskForm from "../frontend/components/taskForm";
 import { showAlert, confirmAction } from "../frontend/utils/alerts";
@@ -13,7 +13,9 @@ function capitalize(word) {
 
 export default function EditTask() {
     const router = useRouter();
-    const { editingTaskId, setEditingTaskId, setPendingDeletionTask } = useList();
+    const { taskId: routeTaskId } = useLocalSearchParams();
+    const taskId = Array.isArray(routeTaskId) ? routeTaskId[0] : routeTaskId;
+    const { setPendingDeletionTask } = useList();
 
     const [initialValues, setInitialValues] = useState(null);
     const [taskToDelete, setTaskToDelete] = useState(null);
@@ -22,7 +24,7 @@ export default function EditTask() {
     const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
-        if (!editingTaskId) {
+        if (!taskId) {
             showAlert("Task unavailable", "Open a task from your list to edit it.");
             router.replace("/");
             return;
@@ -31,7 +33,7 @@ export default function EditTask() {
         const loadTask = async () => {
             try {
                 // load the task, or leave if it is missing or not yours
-                const task = await getTaskById(editingTaskId);
+                const task = await getTaskById(taskId);
                 if (!task) {
                     showAlert("Not found", "This task no longer exists.");
                     router.replace("/");
@@ -60,14 +62,12 @@ export default function EditTask() {
         };
 
         loadTask();
-    }, [editingTaskId, router]);
-
-    useEffect(() => () => setEditingTaskId(null), [setEditingTaskId]);
+    }, [taskId, router]);
 
     const handleSave = async (values) => {
         try {
             // save the edits, then go back to Home
-            await updateTask(editingTaskId, values);
+            await updateTask(taskId, values);
             router.replace("/");
         } catch (error) {
             showAlert("Error", "Couldn't save changes. Please try again.");

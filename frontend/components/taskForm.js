@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Pressable, StyleSheet, Modal, FlatList, Keyboard, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { showAlert } from "../utils/alerts";
 
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
@@ -60,7 +60,7 @@ function PickerPopover({ visible, mode, value, onChange, onClose }) {
                         <DateTimePicker
                             value={value}
                             mode={mode}
-                            display={Platform.OS === "ios" ? "compact" : "default"}
+                            display={Platform.OS === "ios" ? "spinner" : "default"}
                             onValueChange={onChange}
                             accentColor="#e67e22"
                             themeVariant="light"
@@ -117,6 +117,25 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
         }
     };
 
+    const openDateTimePicker = (mode) => {
+        if (Platform.OS === "android") {
+            DateTimePickerAndroid.open({
+                value: dueDate,
+                mode,
+                display: mode === "date" ? "calendar" : "clock",
+                onValueChange: mode === "date" ? handleDateChange : handleTimeChange,
+                accentColor: "#e67e22",
+            });
+            return;
+        }
+
+        if (mode === "date") {
+            setShowDatePopover(true);
+        } else {
+            setShowTimePopover(true);
+        }
+    };
+
     const handleSave = async () => {
         // a task needs a title
         if (!title.trim()) {
@@ -161,7 +180,7 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
                     <View style={styles.row}>
                         <TouchableOpacity
                             style={[styles.input, styles.halfInput, styles.rowBetween]}
-                            onPress={() => setShowDatePopover(true)}
+                            onPress={() => openDateTimePicker("date")}
                         >
                             <Text style={styles.inputText}>{formattedDate}</Text>
                             <Ionicons name="calendar-outline" size={18} color="#555" />
@@ -169,7 +188,7 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
 
                         <TouchableOpacity
                             style={[styles.input, styles.halfInput, styles.rowBetween]}
-                            onPress={() => setShowTimePopover(true)}
+                            onPress={() => openDateTimePicker("time")}
                         >
                             <Text style={styles.inputText}>{formattedTime}</Text>
                             <Ionicons name="time-outline" size={18} color="#555" />
@@ -217,16 +236,21 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
                     <View style={styles.buttonRow}>
                         {secondaryButton && (
                             <TouchableOpacity
-                                style={[styles.button, styles.secondaryButton]}
+                                style={[
+                                    styles.button,
+                                    styles.secondaryButton,
+                                    secondaryButton.disabled && styles.disabledButton,
+                                    isSaving && styles.disabledButton,
+                                ]}
                                 onPress={secondaryButton.onPress}
-                                disabled={secondaryButton.disabled}
+                                disabled={secondaryButton.disabled || isSaving}
                             >
                                 <Text style={styles.buttonText}>{secondaryButton.label}</Text>
                             </TouchableOpacity>
                         )}
 
                         <TouchableOpacity
-                            style={[styles.button, styles.saveButton]}
+                            style={[styles.button, styles.saveButton, isSaving && styles.disabledButton]}
                             onPress={handleSave}
                             disabled={isSaving}
                         >
@@ -275,21 +299,25 @@ export default function TaskForm({ screenTitle, initialValues, onSave, onClose, 
                 </TouchableOpacity>
             </Modal>
 
-            <PickerPopover
-                visible={showDatePopover}
-                mode="date"
-                value={dueDate}
-                onChange={handleDateChange}
-                onClose={() => setShowDatePopover(false)}
-            />
+            {Platform.OS !== "android" && (
+                <>
+                    <PickerPopover
+                        visible={showDatePopover}
+                        mode="date"
+                        value={dueDate}
+                        onChange={handleDateChange}
+                        onClose={() => setShowDatePopover(false)}
+                    />
 
-            <PickerPopover
-                visible={showTimePopover}
-                mode="time"
-                value={dueDate}
-                onChange={handleTimeChange}
-                onClose={() => setShowTimePopover(false)}
-            />
+                    <PickerPopover
+                        visible={showTimePopover}
+                        mode="time"
+                        value={dueDate}
+                        onChange={handleTimeChange}
+                        onClose={() => setShowTimePopover(false)}
+                    />
+                </>
+            )}
         </SafeAreaView>
     );
 }
@@ -407,6 +435,9 @@ const styles = StyleSheet.create({
     },
     saveButton: {
         backgroundColor: "#4caf50",
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     buttonText: {
         color: "#fff",

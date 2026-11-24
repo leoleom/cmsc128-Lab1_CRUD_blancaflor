@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { formatDueDate, formatDateTime } from "../utils/formatDate";
 import { normalizeTags } from "../utils/tags";
 import { useAuth } from "../context/AuthContext";
-import { useList } from "../context/ListContext";
 import { getUserDisplayName } from "../../backend/services/userService";
 
 
@@ -19,11 +18,11 @@ const PRIORITY_COLORS = {
 export default function TaskCard({ task, onToggleComplete }) {
     const router = useRouter();
     const { user } = useAuth();
-    const { setEditingTaskId } = useList();
     const { id, userId, teamId, title, details, dueDate, createdAt, isDone, priority, tags } = task;
     const taskTags = normalizeTags(tags);
     const [showDetails, setShowDetails] = useState(false);
     const [ownerName, setOwnerName] = useState("");
+    const [isUpdating, setIsUpdating] = useState(false);
 
     useEffect(() => {
         // Only look up the owner for team tasks, and only when the window is open
@@ -54,8 +53,17 @@ export default function TaskCard({ task, onToggleComplete }) {
     const priorityLabel = priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1);
 
     const handleEdit = () => {
-        setEditingTaskId(id);
-        router.push("/editTask");
+        router.push({ pathname: "/editTask", params: { taskId: id } });
+    };
+
+    const handleToggleComplete = async () => {
+        if (isUpdating) return;
+        setIsUpdating(true);
+        try {
+            await onToggleComplete(id);
+        } finally {
+            setIsUpdating(false);
+        }
     };
 
     return (
@@ -69,28 +77,52 @@ export default function TaskCard({ task, onToggleComplete }) {
             <View style={[styles.mainSurface, isDone && styles.mainSurfaceDone]} />
             <View style={styles.priorityPanel}>
                 <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => onToggleComplete(id)}
+                    style={[styles.checkbox, isUpdating && styles.disabledCheckbox]}
+                    onPress={handleToggleComplete}
+                    disabled={isUpdating}
+                    accessibilityRole="button"
+                    accessibilityLabel={isUpdating ? "Updating task" : isDone ? "Mark task incomplete" : "Mark task complete"}
                 >
-                    {isDone && <Ionicons name="checkmark" size={20} color="#000000" />}
+                    {isUpdating ? (
+                        <ActivityIndicator size="small" color="#333" />
+                    ) : isDone ? (
+                        <Ionicons name="checkmark" size={20} color="#000000" />
+                    ) : null}
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.textContainer}>
-                <Text
-                    style={[styles.title, isDone && styles.titleDone]}
-                    numberOfLines={1}
-                >
-                    {title || "Untitled task"}
-                </Text>
-                <View style={styles.metaRow}>
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                        {formatDueDate(dueDate)}
-                    </Text>
-                    <View style={[styles.priorityBadge, { borderColor: priorityColor }]}>
-                        <Text style={[styles.priorityLabel, { color: priorityColor }]}>
-                            {priorityLabel}
+            <View style={styles.cardContent}>
+                <View style={styles.cardHeader}>
+                    <View style={styles.textContainer}>
+                        <Text
+                            style={[styles.title, isDone && styles.titleDone]}
+                            numberOfLines={1}
+                        >
+                            {title || "Untitled task"}
                         </Text>
+                        <View style={styles.metaRow}>
+                            <Text style={styles.subtitle} numberOfLines={1}>
+                                {formatDueDate(dueDate)}
+                            </Text>
+                            <View style={[styles.priorityBadge, { borderColor: priorityColor }]}>
+                                <Text style={[styles.priorityLabel, { color: priorityColor }]}>
+                                    {priorityLabel}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.actions}>
+                        <TouchableOpacity onPress={() => setShowDetails(true)} style={styles.iconButton}>
+                            <Ionicons
+                                name="information-circle-outline"
+                                size={25}
+                                color="#000000"
+                                style={styles.infoIcon}
+                            />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
+                            <Ionicons name="create-outline" size={25} color="#000000" />
+                        </TouchableOpacity>
                     </View>
                 </View>
                 {taskTags.length > 0 && (
@@ -102,20 +134,6 @@ export default function TaskCard({ task, onToggleComplete }) {
                         ))}
                     </View>
                 )}
-            </View>
-
-            <View style={styles.actions}>
-                <TouchableOpacity onPress={() => setShowDetails(true)} style={styles.iconButton}>
-                    <Ionicons
-                        name="information-circle-outline"
-                        size={25}
-                        color="#000000"
-                        style={styles.infoIcon}
-                    />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
-                    <Ionicons name="create-outline" size={25} color="#000000" />
-                </TouchableOpacity>
             </View>
 
             <Modal
@@ -178,13 +196,11 @@ export default function TaskCard({ task, onToggleComplete }) {
 const styles = StyleSheet.create({
     card: {
         position: "relative",
-        flexDirection: "row",
-        alignItems: "center",
         backgroundColor: "#f4f4f4",
         borderRadius: 16,
         padding: 20,
         paddingLeft: 88,
-        paddingRight: 86,
+        paddingRight: 16,
         marginBottom: 12,
         borderColor: "#707070",
         borderWidth: 1.5,
@@ -228,8 +244,21 @@ const styles = StyleSheet.create({
         borderColor: "#000000",
         borderWidth: 1,
     },
+    disabledCheckbox: {
+        opacity: 0.6,
+    },
+    cardContent: {
+        flex: 1,
+        minWidth: 0,
+    },
+    cardHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
     textContainer: {
         flex: 1,
+        minWidth: 0,
     },
     title: {
         fontSize: 16,
@@ -268,7 +297,6 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         gap: 6,
         marginTop: 8,
-        paddingRight: 28,
     },
     tag: {
         backgroundColor: "#dedddd",
@@ -281,14 +309,12 @@ const styles = StyleSheet.create({
         color: "#333",
     },
     actions: {
-        position: "absolute",
-        top: 10,
-        right: 10,
         flexDirection: "row",
         flexWrap: "nowrap",
         alignItems: "center",
         justifyContent: "flex-end",
         width: 76,
+        flexShrink: 0,
     },
     iconButton: {
         width: 36,

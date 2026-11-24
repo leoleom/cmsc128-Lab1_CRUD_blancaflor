@@ -36,6 +36,7 @@ export default function Profile() {
     const [editEmail, setEditEmail] = useState("");
     const [editEmailPassword, setEditEmailPassword] = useState("");
     const [isSavingEmail, setIsSavingEmail] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const resetPasswordFields = () => {
         setCurrentPassword("");
@@ -165,10 +166,14 @@ export default function Profile() {
     };
 
     const performLogout = async () => {
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
         try {
             await logoutUser();
         } catch {
             showAlert("Couldn't log out", "Please check your connection and try again.");
+        } finally {
+            setIsLoggingOut(false);
         }
     };
 
@@ -224,9 +229,15 @@ export default function Profile() {
                     <Text style={styles.actionButtonText}>My Teams</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <TouchableOpacity
+                    style={[styles.logoutButton, isLoggingOut && styles.disabledButton]}
+                    onPress={handleLogout}
+                    disabled={isLoggingOut}
+                >
                     <Ionicons name="log-out-outline" size={18} color="#fff" />
-                    <Text style={styles.logoutButtonText}>Log Out</Text>
+                    <Text style={styles.logoutButtonText}>
+                        {isLoggingOut ? "Logging out..." : "Log Out"}
+                    </Text>
                 </TouchableOpacity>
             </ScrollView>
 
@@ -258,7 +269,7 @@ export default function Profile() {
                         />
 
                         <TouchableOpacity
-                            style={styles.saveButton}
+                            style={[styles.saveButton, isSavingName && styles.disabledButton]}
                             onPress={handleSaveName}
                             disabled={isSavingName}
                         >
@@ -310,7 +321,7 @@ export default function Profile() {
                         </View>
 
                         <TouchableOpacity
-                            style={styles.saveButton}
+                            style={[styles.saveButton, isSavingEmail && styles.disabledButton]}
                             onPress={handleSaveEmail}
                             disabled={isSavingEmail}
                         >
@@ -376,7 +387,7 @@ export default function Profile() {
                         </View>
 
                         <TouchableOpacity
-                            style={styles.saveButton}
+                            style={[styles.saveButton, isSubmitting && styles.disabledButton]}
                             onPress={handleChangePassword}
                             disabled={isSubmitting}
                         >
@@ -551,6 +562,9 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         alignItems: "center",
         marginTop: 4,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     saveButtonText: {
         color: "#fff",

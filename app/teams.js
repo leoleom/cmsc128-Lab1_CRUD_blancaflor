@@ -24,6 +24,7 @@ export default function Teams() {
 
     const [newTeamName, setNewTeamName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+    const [removingMemberId, setRemovingMemberId] = useState(null);
 
     // the name field only shows after tapping the Create team button
     const [showCreateField, setShowCreateField] = useState(false);
@@ -158,11 +159,14 @@ export default function Teams() {
             `Remove ${member.displayName} (${member.email || "no email"}) from "${team.name}"? They will lose access to this team's tasks.`,
             "Remove",
             async () => {
+                setRemovingMemberId(member.id);
                 try {
                     await removeMember(team.id, member.id);
                     await refreshTeams();
                 } catch {
                     showAlert("Error", "Couldn't remove that person. Please try again.");
+                } finally {
+                    setRemovingMemberId(null);
                 }
             }
         );
@@ -290,10 +294,16 @@ export default function Teams() {
 
                                 {isRemoveMode && member.id !== team.ownerId && (
                                     <TouchableOpacity
-                                        style={styles.removeButton}
+                                        style={[
+                                            styles.removeButton,
+                                            removingMemberId !== null && styles.disabledButton,
+                                        ]}
                                         onPress={() => handleRemoveMember(team, member)}
+                                        disabled={removingMemberId !== null}
                                     >
-                                        <Text style={styles.removeText}>Remove</Text>
+                                        <Text style={styles.removeText}>
+                                            {removingMemberId === member.id ? "Removing..." : "Remove"}
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -336,12 +346,12 @@ export default function Teams() {
                                     keyboardType="email-address"
                                 />
                                 <TouchableOpacity
-                                    style={styles.addButton}
+                                    style={[styles.addButton, addingTeamId === team.id && styles.disabledButton]}
                                     onPress={() => handleAddMember(team)}
                                     disabled={addingTeamId === team.id}
                                 >
                                     <Text style={styles.addButtonText}>
-                                        {addingTeamId === team.id ? "..." : "Add"}
+                                        {addingTeamId === team.id ? "Adding..." : "Add"}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -407,12 +417,12 @@ export default function Teams() {
                                 autoFocus
                             />
                             <TouchableOpacity
-                                style={styles.createButton}
+                                style={[styles.createButton, isCreating && styles.disabledButton]}
                                 onPress={handleCreateTeam}
                                 disabled={isCreating}
                             >
                                 <Text style={styles.createButtonText}>
-                                    {isCreating ? "..." : "Create"}
+                                    {isCreating ? "Creating..." : "Create"}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -519,6 +529,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         paddingHorizontal: 18,
         justifyContent: "center",
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     createButtonText: {
         color: "#fff",

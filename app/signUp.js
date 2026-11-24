@@ -75,7 +75,7 @@ export default function Signup() {
                     value={password}
                     onChangeText={setPassword}
                 />
-                <TouchableOpacity style={styles.signupButton}
+                <TouchableOpacity style={[styles.signupButton, isSubmitting && styles.disabledButton]}
                     onPress={handleSignup} disabled={isSubmitting}>
                     <Text style={styles.buttonText}>
                         {isSubmitting ? "Creating account..." : "Sign Up"}
@@ -156,6 +156,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: "center",
         marginTop: 8,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     buttonText: {
         color: "#fff",
